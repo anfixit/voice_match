@@ -1,0 +1,16 @@
+torch
+speechbrain
+resemblyzer
+webrtcvad
+audiomentations
+noisereduce
+librosa
+matplotlib
+scipy
+numpy
+soundfile
+gradio
+pydub
+tensorflow
+tensorflow-hub
+pyannote.audio
