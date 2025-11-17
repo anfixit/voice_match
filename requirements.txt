@@ -9,9 +9,9 @@ matplotlib
 scipy
 numpy
 soundfile
-gradio>=4.0.0
+gradio
 pydub
 tensorflow
 tensorflow-hub
 pyannote.audio
-huggingface_hub>=0.20.0
+huggingface_hub
