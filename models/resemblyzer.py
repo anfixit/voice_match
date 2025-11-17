@@ -246,13 +246,14 @@ class EnhancedResemblyzer:
                 "error": str(e)
             }
 
-        def get_resemblyzer() -> EnhancedResemblyzer:
-            """
-            Возвращает экземпляр улучшенной модели Resemblyzer.
 
-            Returns:
-                Экземпляр EnhancedResemblyzer
-            """
-            model = EnhancedResemblyzer()
-            model.load_model()
-            return model
+def get_resemblyzer() -> EnhancedResemblyzer:
+    """
+    Возвращает экземпляр улучшенной модели Resemblyzer.
+
+    Returns:
+        Экземпляр EnhancedResemblyzer
+    """
+    model = EnhancedResemblyzer()
+    model.load_model()
+    return model
