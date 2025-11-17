@@ -23,10 +23,10 @@ jobs:
           port: 22
           script: |
             # Переходим в директорию проекта
-            cd /home/${{ secrets.SERVER_USER }}/voice_match || {
+            cd /opt/voice-match || {
               echo "Creating project directory..."
-              mkdir -p /home/${{ secrets.SERVER_USER }}/voice_match
-              cd /home/${{ secrets.SERVER_USER }}/voice_match
+              mkdir -p /opt/voice-match
+              cd /opt/voice-match
             }
 
             # Клонируем или обновляем репозиторий
@@ -42,6 +42,16 @@ jobs:
 
             # Копируем production конфигурацию
             cp docker-compose.prod.yml docker-compose.yml
+
+            # Настраиваем Nginx (только если конфиг изменился)
+            if [ -f nginx-site.conf ]; then
+              if ! diff -q nginx-site.conf /etc/nginx/sites-available/voice-match.ru >/dev/null 2>&1; then
+                echo "Updating Nginx configuration..."
+                cp nginx-site.conf /etc/nginx/sites-available/voice-match.ru
+                ln -sf /etc/nginx/sites-available/voice-match.ru /etc/nginx/sites-enabled/voice-match.ru
+                nginx -t && systemctl reload nginx
+              fi
+            fi
 
             # Останавливаем старый контейнер если он запущен
             docker-compose down || true
