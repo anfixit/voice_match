@@ -24,13 +24,15 @@
 
 Перейдите: **https://github.com/anfixit/voice_match/settings/secrets/actions**
 
-Создайте/обновите 3 секрета:
+Убедитесь что у вас настроены следующие секреты (обновите значения если нужно):
 
-| Name | Value |
-|------|-------|
-| `SERVER_HOST` | `109.73.194.190` |
-| `SERVER_USER` | `root` |
-| `SERVER_PASSWORD` | (ваш пароль от root) |
+| Name | Value | Примечание |
+|------|-------|-----------|
+| `SSH_HOST` | `109.73.194.190` | IP сервера |
+| `SSH_USER` | `root` | Пользователь |
+| `SSH_KEY` | (ваш приватный ключ) | Приватный SSH ключ для доступа |
+| `SSH_PORT` | `22` | Порт SSH |
+| `PROJECT_PATH` | `/opt/voice-match` | Путь к проекту на сервере |
 
 ---
 
