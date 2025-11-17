@@ -23,10 +23,10 @@ jobs:
           port: 22
           script: |
             # Переходим в директорию проекта
-            cd /home/${{ secrets.SERVER_USER }}/voice_match || {
+            cd /opt/voice-match || {
               echo "Creating project directory..."
-              mkdir -p /home/${{ secrets.SERVER_USER }}/voice_match
-              cd /home/${{ secrets.SERVER_USER }}/voice_match
+              mkdir -p /opt/voice-match
+              cd /opt/voice-match
             }
 
             # Клонируем или обновляем репозиторий
@@ -56,4 +56,6 @@ jobs:
             docker-compose ps
 
             echo "Deployment completed successfully!"
-            echo "Application should be available at https://voice-match.ru"
+            echo "Application running on localhost:8081"
+            echo "To enable public access, configure foodgram-gateway-1 Nginx"
+            echo "See foodgram-gateway-voice-match.conf for configuration"

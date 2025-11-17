@@ -74,7 +74,9 @@ docker-compose up -d --build
 
 Проект настроен для автоматического развертывания через **GitHub Actions** на сервер при каждом push в ветку `main`.
 
-**Подробное руководство по развертыванию:** см. [DEPLOYMENT.md](DEPLOYMENT.md)
+**Подробные руководства по развертыванию:**
+- [DEPLOYMENT.md](DEPLOYMENT.md) - общие инструкции
+- [SERVER_SETUP_109.73.194.190.md](SERVER_SETUP_109.73.194.190.md) - для текущего production сервера
 
 Краткие шаги:
 
