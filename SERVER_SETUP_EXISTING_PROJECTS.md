@@ -1,4 +1,4 @@
-# 🚀 Инструкция по развертыванию на сервере 109.73.194.190
+# 🚀 Инструкция по развертыванию на сервере YOUR_SERVER_IP
 
 Этот сервер уже используется для других проектов, поэтому настраиваем так, чтобы не затронуть существующие.
 
@@ -6,17 +6,17 @@
 
 ## 📋 Информация о развертывании
 
-- **Сервер:** 109.73.194.190
-- **Пользователь:** root
+- **Сервер:** YOUR_SERVER_IP
+- **Пользователь:** YOUR_SSH_USER
 - **Директория проекта:** /opt/voice-match
-- **Домен:** voice-match.ru (зарегистрирован на reg.ru)
-- **Существующие проекты:** foodgram (порт 8080), freelance_lena_bot
-- **Существующий Nginx:** foodgram-gateway-1 (Docker, занимает порты 80/443)
+- **Домен:** your-domain.com (зарегистрирован на вашем регистраторе)
+- **Существующие проекты:** Другие ваши проекты на сервере
+- **Существующий Nginx:** Docker Nginx контейнер который занял порты 80/443
 
 **Архитектура:**
 - `voice_match_app` (Gradio) - внутри Docker сети, порт 7860
 - `voice_match_nginx` (Docker Nginx) - localhost:8081
-- `foodgram-gateway-1` (главный Nginx) - порты 80/443, проксирует voice-match.ru на localhost:8081
+- `existing_nginx` (главный Nginx) - порты 80/443, проксирует your-domain.com на localhost:8081
 
 ---
 
@@ -28,8 +28,8 @@
 
 | Name | Value | Примечание |
 |------|-------|-----------|
-| `SSH_HOST` | `109.73.194.190` | IP сервера |
-| `SSH_USER` | `root` | Пользователь |
+| `SSH_HOST` | `YOUR_SERVER_IP` | IP сервера |
+| `SSH_USER` | `YOUR_SSH_USER` | Пользователь |
 | `SSH_KEY` | (ваш приватный ключ) | Приватный SSH ключ для доступа |
 | `SSH_PORT` | `22` | Порт SSH |
 | `PROJECT_PATH` | `/opt/voice-match` | Путь к проекту на сервере |
@@ -40,15 +40,15 @@
 
 1. Войдите в личный кабинет: https://www.reg.ru/user/account/
 2. Перейдите в раздел **"Домены"**
-3. Найдите домен **voice-match.ru** и нажмите **"Управление"**
+3. Найдите домен **your-domain.com** и нажмите **"Управление"**
 4. Перейдите в **"Управление DNS"** → **"Редактировать зону"**
 
 Добавьте/измените A-записи:
 
 ```
 Тип    Субдомен    Значение           TTL
-A      @           109.73.194.190     3600
-A      www         109.73.194.190     3600
+A      @           YOUR_SERVER_IP     3600
+A      www         YOUR_SERVER_IP     3600
 ```
 
 5. Нажмите **"Сохранить изменения"**
@@ -56,8 +56,8 @@ A      www         109.73.194.190     3600
 
 **Проверка DNS:**
 ```bash
-nslookup voice-match.ru
-# Должен вернуть: 109.73.194.190
+nslookup your-domain.com
+# Должен вернуть: YOUR_SERVER_IP
 ```
 
 ---
@@ -66,7 +66,7 @@ nslookup voice-match.ru
 
 Подключитесь к серверу:
 ```bash
-ssh root@109.73.194.190
+ssh root@YOUR_SERVER_IP
 ```
 
 ### 3.1. Проверка что установлено
@@ -129,11 +129,11 @@ apt install -y certbot python3-certbot-nginx
 Создайте минимальную конфигурацию:
 
 ```bash
-cat > /etc/nginx/sites-available/voice-match.ru << 'EOF'
+cat > /etc/nginx/sites-available/your-domain.com << 'EOF'
 server {
     listen 80;
     listen [::]:80;
-    server_name voice-match.ru www.voice-match.ru;
+    server_name your-domain.com www.your-domain.com;
 
     location /.well-known/acme-challenge/ {
         root /var/www/html;
@@ -146,7 +146,7 @@ server {
 EOF
 
 # Активируем
-ln -sf /etc/nginx/sites-available/voice-match.ru /etc/nginx/sites-enabled/voice-match.ru
+ln -sf /etc/nginx/sites-available/your-domain.com /etc/nginx/sites-enabled/your-domain.com
 
 # Проверяем и перезагружаем
 nginx -t && systemctl reload nginx
@@ -155,14 +155,14 @@ nginx -t && systemctl reload nginx
 ### 4.3. Получение сертификата
 
 ```bash
-certbot certonly --nginx -d voice-match.ru -d www.voice-match.ru
+certbot certonly --nginx -d your-domain.com -d www.your-domain.com
 ```
 
 Следуйте инструкциям (введите email, согласитесь с условиями).
 
 Сертификаты будут сохранены в:
-- `/etc/letsencrypt/live/voice-match.ru/fullchain.pem`
-- `/etc/letsencrypt/live/voice-match.ru/privkey.pem`
+- `/etc/letsencrypt/live/your-domain.com/fullchain.pem`
+- `/etc/letsencrypt/live/your-domain.com/privkey.pem`
 
 ### 4.4. Настройка автообновления
 
@@ -184,8 +184,8 @@ crontab -e
 
 ```bash
 cd /opt/voice-match
-cp nginx-site.conf /etc/nginx/sites-available/voice-match.ru
-ln -sf /etc/nginx/sites-available/voice-match.ru /etc/nginx/sites-enabled/voice-match.ru
+cp nginx-site.conf /etc/nginx/sites-available/your-domain.com
+ln -sf /etc/nginx/sites-available/your-domain.com /etc/nginx/sites-enabled/your-domain.com
 
 # Проверка конфигурации
 nginx -t
@@ -213,13 +213,13 @@ docker-compose logs -f
 
 **Проверка:**
 - Приложение должно быть доступно внутри: http://127.0.0.1:7861
-- Снаружи через Nginx: https://voice-match.ru
+- Снаружи через Nginx: https://your-domain.com
 
 ---
 
 ## ✅ Шаг 7: Проверка работы
 
-1. Откройте в браузере: **https://voice-match.ru**
+1. Откройте в браузере: **https://your-domain.com**
 2. Должен открыться интерфейс Gradio
 3. Проверьте загрузку и сравнение аудио
 
@@ -265,7 +265,7 @@ netstat -tulpn | grep LISTEN
 **voice-match использует:**
 - Порт 7861 (только localhost) - не конфликтует с другими
 - Контейнер: `voice_match_app` - уникальное имя
-- Nginx config: `/etc/nginx/sites-enabled/voice-match.ru`
+- Nginx config: `/etc/nginx/sites-enabled/your-domain.com`
 
 ---
 
@@ -306,8 +306,8 @@ systemctl reload nginx
 systemctl restart nginx
 
 # Логи
-tail -f /var/log/nginx/voice-match.ru-access.log
-tail -f /var/log/nginx/voice-match.ru-error.log
+tail -f /var/log/nginx/your-domain.com-access.log
+tail -f /var/log/nginx/your-domain.com-error.log
 ```
 
 ### Мониторинг
@@ -344,7 +344,7 @@ nginx -t
 
 # Логи ошибок
 tail -f /var/log/nginx/error.log
-tail -f /var/log/nginx/voice-match.ru-error.log
+tail -f /var/log/nginx/your-domain.com-error.log
 ```
 
 ### Порт 7861 занят
@@ -366,7 +366,7 @@ netstat -tulpn | grep 7861
 
 ```bash
 # Проверка сертификатов
-ls -la /etc/letsencrypt/live/voice-match.ru/
+ls -la /etc/letsencrypt/live/your-domain.com/
 
 # Обновление сертификатов
 certbot renew --nginx
@@ -383,7 +383,7 @@ systemctl status nginx
 ```
 Internet
     ↓
-voice-match.ru:443 (HTTPS)
+your-domain.com:443 (HTTPS)
     ↓
 Nginx (системный)
     ↓ proxy_pass
@@ -407,7 +407,7 @@ Gradio App (порт 7860 внутри контейнера)
 - [ ] Репозиторий клонирован
 - [ ] voice-match приложение запущено (docker-compose ps)
 - [ ] Порт 8081 доступен (curl http://localhost:8081)
-- [ ] SSL сертификат получен для voice-match.ru
+- [ ] SSL сертификат получен для your-domain.com
 - [ ] foodgram-gateway-1 настроен для проксирования
 - [ ] Сайт доступен по HTTPS
 - [ ] Автоматический деплой работает
@@ -417,15 +417,15 @@ Gradio App (порт 7860 внутри контейнера)
 
 ## 🌐 Следующий шаг: Настройка foodgram-gateway-1
 
-После развертывания приложения (шаги выше), необходимо настроить существующий Docker Nginx `foodgram-gateway-1` для проксирования voice-match.ru на наше приложение.
+После развертывания приложения (шаги выше), необходимо настроить существующий Docker Nginx `foodgram-gateway-1` для проксирования your-domain.com на наше приложение.
 
-**📖 Подробная инструкция:** См. [FOODGRAM_GATEWAY_SETUP.md](FOODGRAM_GATEWAY_SETUP.md)
+**📖 Подробная инструкция:** См. [EXISTING_NGINX_SETUP.md](EXISTING_NGINX_SETUP.md)
 
 **Кратко:**
-1. Получите SSL сертификат для voice-match.ru через certbot
-2. Добавьте конфигурацию в foodgram-gateway-1 (см. файл `foodgram-gateway-voice-match.conf`)
+1. Получите SSL сертификат для your-domain.com через certbot
+2. Добавьте конфигурацию в foodgram-gateway-1 (см. файл `existing-nginx-voice-match.conf`)
 3. Перезапустите foodgram-gateway-1
-4. Проверьте доступность https://voice-match.ru
+4. Проверьте доступность https://your-domain.com
 
 ---
 

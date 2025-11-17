@@ -22,7 +22,7 @@
 
 #### Секрет 1: SSH_HOST
 - **Name:** `SSH_HOST`
-- **Value:** `109.73.194.190`
+- **Value:** `YOUR_SERVER_IP`
 - Нажмите **Add secret**
 
 #### Секрет 2: SSH_USER
@@ -73,7 +73,7 @@ GitHub Repository
         └── Secrets and variables
             └── Actions
                 └── Секреты:
-                    ├── SSH_HOST = 109.73.194.190
+                    ├── SSH_HOST = YOUR_SERVER_IP
                     ├── SSH_USER = root
                     ├── SSH_KEY = (приватный ключ)
                     ├── SSH_PORT = 22
