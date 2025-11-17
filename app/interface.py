@@ -2,6 +2,7 @@ import gradio as gr
 import traceback
 import os
 import tempfile
+import logging
 import librosa
 import numpy as np
 import matplotlib.pyplot as plt
