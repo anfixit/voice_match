@@ -71,7 +71,9 @@ DEFAULT_WEIGHTS = {
 }
 
 try:
-    with open("../weights.json", "r") as f:
+    # Определяем путь к weights.json относительно корня проекта
+    weights_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "weights.json")
+    with open(weights_path, "r") as f:
         weights = json.load(f)
         log.info("Весовые коэффициенты загружены из weights.json")
 except Exception:
