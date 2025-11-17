@@ -57,5 +57,3 @@ jobs:
 
             echo "Deployment completed successfully!"
             echo "Application running on localhost:8081"
-            echo "To enable public access, configure foodgram-gateway-1 Nginx"
-            echo "See foodgram-gateway-voice-match.conf for configuration"
