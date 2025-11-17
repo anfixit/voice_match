@@ -4,8 +4,8 @@ services:
   voice_match:
     build: .
     container_name: voice_match_app
-    ports:
-      - "127.0.0.1:7861:7860"
+    expose:
+      - "7860"
     volumes:
       - ./logs:/app/logs
       - ./pretrained_models:/app/pretrained_models
@@ -13,3 +13,23 @@ services:
       - GRADIO_SERVER_NAME=0.0.0.0
       - GRADIO_SERVER_PORT=7860
     restart: unless-stopped
+    networks:
+      - voice_match_network
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: voice_match_nginx
+    ports:
+      - "127.0.0.1:8081:80"
+    volumes:
+      - ./nginx/nginx-docker.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - voice_match
+    restart: unless-stopped
+    networks:
+      - voice_match_network
+
+networks:
+  voice_match_network:
+    driver: bridge

@@ -43,16 +43,6 @@ jobs:
             # Копируем production конфигурацию
             cp docker-compose.prod.yml docker-compose.yml
 
-            # Настраиваем Nginx (только если конфиг изменился)
-            if [ -f nginx-site.conf ]; then
-              if ! diff -q nginx-site.conf /etc/nginx/sites-available/voice-match.ru >/dev/null 2>&1; then
-                echo "Updating Nginx configuration..."
-                cp nginx-site.conf /etc/nginx/sites-available/voice-match.ru
-                ln -sf /etc/nginx/sites-available/voice-match.ru /etc/nginx/sites-enabled/voice-match.ru
-                nginx -t && systemctl reload nginx
-              fi
-            fi
-
             # Останавливаем старый контейнер если он запущен
             docker-compose down || true
 
@@ -66,4 +56,6 @@ jobs:
             docker-compose ps
 
             echo "Deployment completed successfully!"
-            echo "Application should be available at https://voice-match.ru"
+            echo "Application running on localhost:8081"
+            echo "To enable public access, configure foodgram-gateway-1 Nginx"
+            echo "See foodgram-gateway-voice-match.conf for configuration"
