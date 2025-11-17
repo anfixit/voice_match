@@ -608,577 +608,577 @@ class VoiceFeatureExtractor:
 
         return perceptual_features
 
-        def assess_voice_quality(self, y: np.ndarray,
-                                 pitch_features: Dict[str, Union[float, np.ndarray]],
-                                 jitter_shimmer: Dict[str, float]) -> Dict[str, float]:
-            """
-            Оценивает качество голоса и его специфические характеристики.
+    def assess_voice_quality(self, y: np.ndarray,
+                             pitch_features: Dict[str, Union[float, np.ndarray]],
+                             jitter_shimmer: Dict[str, float]) -> Dict[str, float]:
+        """
+        Оценивает качество голоса и его специфические характеристики.
 
-            Args:
-                y: Аудиосигнал
-                pitch_features: Характеристики основного тона
-                jitter_shimmer: Параметры джиттера и шиммера
+        Args:
+            y: Аудиосигнал
+            pitch_features: Характеристики основного тона
+            jitter_shimmer: Параметры джиттера и шиммера
 
-            Returns:
-                Словарь с оценками качества голоса
-            """
-            # 1. Хриплость (breathiness)
-            # Высокий джиттер и шиммер, высокий шум в высоких частотах
-            breathiness = 0.0
+        Returns:
+            Словарь с оценками качества голоса
+        """
+        # 1. Хриплость (breathiness)
+        # Высокий джиттер и шиммер, высокий шум в высоких частотах
+        breathiness = 0.0
 
-            if "local_jitter" in jitter_shimmer and "local_shimmer" in jitter_shimmer:
-                # Нормализация параметров джиттер/шиммер к диапазону 0-1
-                norm_jitter = min(1.0, jitter_shimmer["local_jitter"] / self.jitter_normal_range[1])
-                norm_shimmer = min(1.0, jitter_shimmer["local_shimmer"] / self.shimmer_normal_range[1])
+        if "local_jitter" in jitter_shimmer and "local_shimmer" in jitter_shimmer:
+            # Нормализация параметров джиттер/шиммер к диапазону 0-1
+            norm_jitter = min(1.0, jitter_shimmer["local_jitter"] / self.jitter_normal_range[1])
+            norm_shimmer = min(1.0, jitter_shimmer["local_shimmer"] / self.shimmer_normal_range[1])
 
-                # Оценка хриплости
-                breathiness = 0.5 * norm_jitter + 0.5 * norm_shimmer
+            # Оценка хриплости
+            breathiness = 0.5 * norm_jitter + 0.5 * norm_shimmer
 
-            # 2. Скрипучесть (creakiness/vocal fry)
-            # Характеризуется низким питчем и нерегулярной амплитудной модуляцией
-            creakiness = 0.0
+        # 2. Скрипучесть (creakiness/vocal fry)
+        # Характеризуется низким питчем и нерегулярной амплитудной модуляцией
+        creakiness = 0.0
 
-            if "mean" in pitch_features and "std" in pitch_features:
-                # Низкий средний питч
-                low_pitch_factor = 1.0 if pitch_features["mean"] < 100 else max(0.0, 1.0 - (
-                            pitch_features["mean"] - 100) / 50)
+        if "mean" in pitch_features and "std" in pitch_features:
+            # Низкий средний питч
+            low_pitch_factor = 1.0 if pitch_features["mean"] < 100 else max(0.0, 1.0 - (
+                        pitch_features["mean"] - 100) / 50)
 
-                # Высокая вариативность питча
-                high_variability = min(1.0, pitch_features["std"] / 20.0)
+            # Высокая вариативность питча
+            high_variability = min(1.0, pitch_features["std"] / 20.0)
 
-                creakiness = 0.6 * low_pitch_factor + 0.4 * high_variability
+            creakiness = 0.6 * low_pitch_factor + 0.4 * high_variability
 
-            # 3. Напряженность (tenseness)
-            # Характеризуется высоким питчем, высоким спектральным наклоном
-            tenseness = 0.0
+        # 3. Напряженность (tenseness)
+        # Характеризуется высоким питчем, высоким спектральным наклоном
+        tenseness = 0.0
 
-            if "mean" in pitch_features:
-                # Высокий питч для соответствующего пола
-                gender_prob = pitch_features.get("gender_probability", {"male": 0.5, "female": 0.5})
+        if "mean" in pitch_features:
+            # Высокий питч для соответствующего пола
+            gender_prob = pitch_features.get("gender_probability", {"male": 0.5, "female": 0.5})
 
-                if gender_prob["male"] > gender_prob["female"]:
-                    # Для мужского голоса
-                    high_pitch_factor = min(1.0, max(0.0, (pitch_features["mean"] - 100) / 80))
-                else:
-                    # Для женского голоса
-                    high_pitch_factor = min(1.0, max(0.0, (pitch_features["mean"] - 180) / 120))
+            if gender_prob["male"] > gender_prob["female"]:
+                # Для мужского голоса
+                high_pitch_factor = min(1.0, max(0.0, (pitch_features["mean"] - 100) / 80))
+            else:
+                # Для женского голоса
+                high_pitch_factor = min(1.0, max(0.0, (pitch_features["mean"] - 180) / 120))
 
-                # Спектральный наклон (быстрое убывание амплитуды с частотой)
-                spectral_slope = librosa.feature.spectral_slope(y=y)[0]
-                steep_slope_factor = min(1.0, abs(np.mean(spectral_slope)) * 10)
+            # Спектральный наклон (быстрое убывание амплитуды с частотой)
+            spectral_slope = librosa.feature.spectral_slope(y=y)[0]
+            steep_slope_factor = min(1.0, abs(np.mean(spectral_slope)) * 10)
 
-                tenseness = 0.5 * high_pitch_factor + 0.5 * steep_slope_factor
+            tenseness = 0.5 * high_pitch_factor + 0.5 * steep_slope_factor
 
-            # 4. Назальность (nasality)
-            # Высокая энергия в носовом резонансе (250-450 Hz)
-            nasality = 0.0
+        # 4. Назальность (nasality)
+        # Высокая энергия в носовом резонансе (250-450 Hz)
+        nasality = 0.0
 
-            # Вычисление носового резонанса
-            s = np.abs(librosa.stft(y, n_fft=self.frame_length, hop_length=self.hop_length))
-            freqs = librosa.fft_frequencies(sr=self.sample_rate, n_fft=self.frame_length)
+        # Вычисление носового резонанса
+        s = np.abs(librosa.stft(y, n_fft=self.frame_length, hop_length=self.hop_length))
+        freqs = librosa.fft_frequencies(sr=self.sample_rate, n_fft=self.frame_length)
 
-            # Носовой диапазон 250-450 Hz
-            nasal_mask = (freqs >= 250) & (freqs <= 450)
+        # Носовой диапазон 250-450 Hz
+        nasal_mask = (freqs >= 250) & (freqs <= 450)
 
-            # Энергия в носовом диапазоне относительно общей энергии
-            nasal_energy = np.mean(s[nasal_mask, :])
-            total_energy = np.mean(s)
+        # Энергия в носовом диапазоне относительно общей энергии
+        nasal_energy = np.mean(s[nasal_mask, :])
+        total_energy = np.mean(s)
 
-            if total_energy > 0:
-                nasality = min(1.0, nasal_energy / total_energy * 3)
+        if total_energy > 0:
+            nasality = min(1.0, nasal_energy / total_energy * 3)
 
-            # 5. Степень звонкости (voicing degree)
-            # Доля вокализованных фреймов
-            voicing_degree = 0.0
+        # 5. Степень звонкости (voicing degree)
+        # Доля вокализованных фреймов
+        voicing_degree = 0.0
 
-            if "is_voiced" in pitch_features:
-                voiced_frames = np.sum(pitch_features["is_voiced"])
-                total_frames = len(pitch_features["is_voiced"])
+        if "is_voiced" in pitch_features:
+            voiced_frames = np.sum(pitch_features["is_voiced"])
+            total_frames = len(pitch_features["is_voiced"])
 
-                if total_frames > 0:
-                    voicing_degree = voiced_frames / total_frames
+            if total_frames > 0:
+                voicing_degree = voiced_frames / total_frames
 
-            # 6. Стабильность голоса (voice stability)
-            # Низкий джиттер и шиммер, стабильный питч
-            stability = 0.0
+        # 6. Стабильность голоса (voice stability)
+        # Низкий джиттер и шиммер, стабильный питч
+        stability = 0.0
 
-            if "local_jitter" in jitter_shimmer and "local_shimmer" in jitter_shimmer and "std" in pitch_features:
-                # Инвертируем показатели нестабильности
-                jitter_stability = 1.0 - min(1.0, jitter_shimmer["local_jitter"] / self.jitter_normal_range[1])
-                shimmer_stability = 1.0 - min(1.0, jitter_shimmer["local_shimmer"] / self.shimmer_normal_range[1])
+        if "local_jitter" in jitter_shimmer and "local_shimmer" in jitter_shimmer and "std" in pitch_features:
+            # Инвертируем показатели нестабильности
+            jitter_stability = 1.0 - min(1.0, jitter_shimmer["local_jitter"] / self.jitter_normal_range[1])
+            shimmer_stability = 1.0 - min(1.0, jitter_shimmer["local_shimmer"] / self.shimmer_normal_range[1])
 
-                # Нормализованная стабильность питча
-                pitch_stability = 1.0 - min(1.0, pitch_features["std"] / (0.2 * pitch_features["mean"]))
+            # Нормализованная стабильность питча
+            pitch_stability = 1.0 - min(1.0, pitch_features["std"] / (0.2 * pitch_features["mean"]))
 
-                stability = 0.3 * jitter_stability + 0.3 * shimmer_stability + 0.4 * pitch_stability
+            stability = 0.3 * jitter_stability + 0.3 * shimmer_stability + 0.4 * pitch_stability
 
+        return {
+            "breathiness": breathiness,
+            "creakiness": creakiness,
+            "tenseness": tenseness,
+            "nasality": nasality,
+            "voicing_degree": voicing_degree,
+            "stability": stability
+        }
+
+    def extract_temporal_features(self, y: np.ndarray) -> Dict[str, float]:
+        """
+        Извлекает темпоральные характеристики речи.
+
+        Args:
+            y: Аудиосигнал
+
+        Returns:
+            Словарь с темпоральными характеристиками
+        """
+        # Обнаружение речевой активности (VAD)
+        # Вычисление энергии
+        energy = librosa.feature.rms(y=y, frame_length=self.frame_length, hop_length=self.hop_length)[0]
+        energy_threshold = 0.05 * np.max(energy)
+
+        # Детекция речи
+        speech_frames = energy > energy_threshold
+
+        # Преобразование к временным отметкам
+        frame_times = librosa.frames_to_time(
+            np.arange(len(speech_frames)),
+            sr=self.sample_rate,
+            hop_length=self.hop_length
+        )
+
+        # Если нет речи
+        if not np.any(speech_frames):
             return {
-                "breathiness": breathiness,
-                "creakiness": creakiness,
-                "tenseness": tenseness,
-                "nasality": nasality,
-                "voicing_degree": voicing_degree,
-                "stability": stability
+                "speech_rate": 0.0,
+                "speech_ratio": 0.0,
+                "pause_ratio": 1.0,
+                "mean_phrase_duration": 0.0,
+                "mean_pause_duration": 0.0,
+                "speaking_tempo": 0.0
             }
 
-        def extract_temporal_features(self, y: np.ndarray) -> Dict[str, float]:
-            """
-            Извлекает темпоральные характеристики речи.
+        # 1. Определение фраз (последовательностей речевых фреймов)
+        phrase_start_idxs = np.where(np.diff(np.concatenate(([0], speech_frames.astype(int)))) == 1)[0]
+        phrase_end_idxs = np.where(np.diff(np.concatenate((speech_frames.astype(int), [0]))) == -1)[0]
 
-            Args:
-                y: Аудиосигнал
+        # 2. Определение пауз (последовательностей неречевых фреймов)
+        pause_start_idxs = np.where(np.diff(np.concatenate(([1], speech_frames.astype(int)))) == -1)[0]
+        pause_end_idxs = np.where(np.diff(np.concatenate((speech_frames.astype(int), [1]))) == 1)[0]
 
-            Returns:
-                Словарь с темпоральными характеристиками
-            """
-            # Обнаружение речевой активности (VAD)
-            # Вычисление энергии
-            energy = librosa.feature.rms(y=y, frame_length=self.frame_length, hop_length=self.hop_length)[0]
-            energy_threshold = 0.05 * np.max(energy)
+        # 3. Вычисление длительностей фраз и пауз
+        phrase_durations = frame_times[phrase_end_idxs] - frame_times[phrase_start_idxs]
+        pause_durations = frame_times[pause_end_idxs] - frame_times[pause_start_idxs]
 
-            # Детекция речи
-            speech_frames = energy > energy_threshold
+        # 4. Основные темпоральные характеристики
 
-            # Преобразование к временным отметкам
-            frame_times = librosa.frames_to_time(
-                np.arange(len(speech_frames)),
-                sr=self.sample_rate,
-                hop_length=self.hop_length
-            )
+        # Доля речи
+        speech_ratio = np.sum(speech_frames) / len(speech_frames)
+        pause_ratio = 1.0 - speech_ratio
 
-            # Если нет речи
-            if not np.any(speech_frames):
-                return {
-                    "speech_rate": 0.0,
-                    "speech_ratio": 0.0,
-                    "pause_ratio": 1.0,
-                    "mean_phrase_duration": 0.0,
-                    "mean_pause_duration": 0.0,
-                    "speaking_tempo": 0.0
-                }
+        # Средняя длительность фраз и пауз
+        mean_phrase_duration = np.mean(phrase_durations) if len(phrase_durations) > 0 else 0
+        mean_pause_duration = np.mean(pause_durations) if len(pause_durations) > 0 else 0
 
-            # 1. Определение фраз (последовательностей речевых фреймов)
-            phrase_start_idxs = np.where(np.diff(np.concatenate(([0], speech_frames.astype(int)))) == 1)[0]
-            phrase_end_idxs = np.where(np.diff(np.concatenate((speech_frames.astype(int), [0]))) == -1)[0]
+        # Скорость речи (фраз в секунду)
+        total_duration = frame_times[-1]
+        speech_rate = len(phrase_durations) / total_duration if total_duration > 0 else 0
 
-            # 2. Определение пауз (последовательностей неречевых фреймов)
-            pause_start_idxs = np.where(np.diff(np.concatenate(([1], speech_frames.astype(int)))) == -1)[0]
-            pause_end_idxs = np.where(np.diff(np.concatenate((speech_frames.astype(int), [1]))) == 1)[0]
+        # Темп речи (отношение времени речи к общему времени)
+        speaking_tempo = speech_ratio * (1.0 / mean_phrase_duration) if mean_phrase_duration > 0 else 0
 
-            # 3. Вычисление длительностей фраз и пауз
-            phrase_durations = frame_times[phrase_end_idxs] - frame_times[phrase_start_idxs]
-            pause_durations = frame_times[pause_end_idxs] - frame_times[pause_start_idxs]
+        return {
+            "speech_rate": speech_rate,
+            "speech_ratio": speech_ratio,
+            "pause_ratio": pause_ratio,
+            "mean_phrase_duration": mean_phrase_duration,
+            "mean_pause_duration": mean_pause_duration,
+            "speaking_tempo": speaking_tempo,
+            "phrase_count": len(phrase_durations),
+            "pause_count": len(pause_durations)
+        }
 
-            # 4. Основные темпоральные характеристики
-
-            # Доля речи
-            speech_ratio = np.sum(speech_frames) / len(speech_frames)
-            pause_ratio = 1.0 - speech_ratio
-
-            # Средняя длительность фраз и пауз
-            mean_phrase_duration = np.mean(phrase_durations) if len(phrase_durations) > 0 else 0
-            mean_pause_duration = np.mean(pause_durations) if len(pause_durations) > 0 else 0
-
-            # Скорость речи (фраз в секунду)
-            total_duration = frame_times[-1]
-            speech_rate = len(phrase_durations) / total_duration if total_duration > 0 else 0
-
-            # Темп речи (отношение времени речи к общему времени)
-            speaking_tempo = speech_ratio * (1.0 / mean_phrase_duration) if mean_phrase_duration > 0 else 0
-
-            return {
-                "speech_rate": speech_rate,
-                "speech_ratio": speech_ratio,
-                "pause_ratio": pause_ratio,
-                "mean_phrase_duration": mean_phrase_duration,
-                "mean_pause_duration": mean_pause_duration,
-                "speaking_tempo": speaking_tempo,
-                "phrase_count": len(phrase_durations),
-                "pause_count": len(pause_durations)
-            }
-
-        def create_biometric_vector(self,
+    def create_biometric_vector(self,
                                     pitch_features: Dict[str, Union[float, np.ndarray]],
                                     jitter_shimmer: Dict[str, float],
                                     fricative_features: Dict[str, Union[float, dict]],
                                     nasal_features: Dict[str, float],
                                     voice_quality: Dict[str, float]) -> np.ndarray:
-            """
-            Создает единый биометрический вектор признаков для идентификации говорящего.
-
-            Args:
-                pitch_features: Характеристики основного тона
-                jitter_shimmer: Параметры джиттера и шиммера
-                fricative_features: Характеристики фрикативных звуков
-                nasal_features: Характеристики носовых звуков
-                voice_quality: Оценки качества голоса
-
-            Returns:
-                Биометрический вектор признаков
-            """
-            # Компоненты вектора биометрических признаков
-            biometric_vector = []
-
-            # 1. Признаки основного тона
-            if "mean" in pitch_features and "median" in pitch_features and "std" in pitch_features:
-                biometric_vector.extend([
-                    pitch_features["mean"],
-                    pitch_features["median"],
-                    pitch_features["std"],
-                    pitch_features.get("contour", {}).get("derivative_mean", 0.0),
-                    pitch_features.get("contour", {}).get("acceleration_mean", 0.0)
-                ])
-            else:
-                biometric_vector.extend([0.0, 0.0, 0.0, 0.0, 0.0])
-
-            # 2. Признаки джиттера и шиммера (микроколебания)
-            biometric_vector.extend([
-                jitter_shimmer.get("local_jitter", 0.0),
-                jitter_shimmer.get("absolute_jitter", 0.0),
-                jitter_shimmer.get("ppq5", 0.0),
-                jitter_shimmer.get("local_shimmer", 0.0),
-                jitter_shimmer.get("absolute_shimmer", 0.0),
-                jitter_shimmer.get("apq5", 0.0)
-            ])
-
-            # 3. Признаки фрикативных звуков
-            if "s_z" in fricative_features and "sh_zh" in fricative_features:
-                biometric_vector.extend([
-                    fricative_features["s_z"].get("mean_ratio", 0.0),
-                    fricative_features["sh_zh"].get("mean_ratio", 0.0),
-                    fricative_features["centroid_mean"]
-                ])
-            else:
-                biometric_vector.extend([0.0, 0.0, 0.0])
-
-            # 4. Признаки носовых звуков
-            biometric_vector.extend([
-                nasal_features.get("nasal1_resonance_mean", 0.0),
-                nasal_features.get("nasal2_resonance_mean", 0.0),
-                nasal_features.get("nasal_resonance_ratio", 0.0)
-            ])
-
-            # 5. Признаки качества голоса
-            biometric_vector.extend([
-                voice_quality.get("breathiness", 0.0),
-                voice_quality.get("creakiness", 0.0),
-                voice_quality.get("tenseness", 0.0),
-                voice_quality.get("nasality", 0.0),
-                voice_quality.get("stability", 0.0)
-            ])
-
-            return np.array(biometric_vector)
-
-        def compare_voice_features(self, features1: Dict[str, any], features2: Dict[str, any]) -> Dict[str, float]:
-            """
-            Сравнивает характеристики двух голосов и возвращает меры сходства.
-
-            Args:
-                features1: Характеристики первого голоса
-                features2: Характеристики второго голоса
-
-            Returns:
-                Словарь с мерами сходства по разным аспектам
-            """
-            # Сходство по биометрическим векторам
-            biometric_sim = 0.0
-
-            if "biometric_vector" in features1 and "biometric_vector" in features2:
-                v1 = features1["biometric_vector"]
-                v2 = features2["biometric_vector"]
-
-                # Косинусное сходство
-                norm1 = np.linalg.norm(v1)
-                norm2 = np.linalg.norm(v2)
-
-                if norm1 > 0 and norm2 > 0:
-                    biometric_sim = np.dot(v1, v2) / (norm1 * norm2)
-
-            # Сходство по основному тону
-            pitch_sim = self._compare_pitch_features(features1.get("pitch", {}), features2.get("pitch", {}))
-
-            # Сходство по джиттеру/шиммеру
-            jitter_shimmer_sim = self._compare_jitter_shimmer(
-                features1.get("jitter_shimmer", {}),
-                features2.get("jitter_shimmer", {})
-            )
-
-            # Сходство по фрикативным
-            fricative_sim = self._compare_fricative_features(
-                features1.get("fricative", {}),
-                features2.get("fricative", {})
-            )
-
-            # Сходство по носовым
-            nasal_sim = self._compare_nasal_features(
-                features1.get("nasal", {}),
-                features2.get("nasal", {})
-            )
-
-            # Сходство по качеству голоса
-            voice_quality_sim = self._compare_voice_quality(
-                features1.get("voice_quality", {}),
-                features2.get("voice_quality", {})
-            )
-
-            # Общая оценка сходства (взвешенная)
-            weights = {
-                "biometric": 1.5,
-                "pitch": 1.0,
-                "jitter_shimmer": 1.2,
-                "fricative": 0.8,
-                "nasal": 1.0,
-                "voice_quality": 0.7
-            }
-
-            similarities = {
-                "biometric": biometric_sim,
-                "pitch": pitch_sim,
-                "jitter_shimmer": jitter_shimmer_sim,
-                "fricative": fricative_sim,
-                "nasal": nasal_sim,
-                "voice_quality": voice_quality_sim
-            }
-
-            # Вычисление взвешенного среднего
-            weighted_sum = 0.0
-            weight_sum = 0.0
-
-            for key, value in similarities.items():
-                weight = weights.get(key, 1.0)
-                weighted_sum += value * weight
-                weight_sum += weight
-
-            overall_similarity = weighted_sum / weight_sum if weight_sum > 0 else 0.0
-
-            # Итоговые результаты с общей оценкой
-            similarities["overall"] = overall_similarity
-
-            return similarities
-
-        def _compare_pitch_features(self, pitch1: Dict[str, any], pitch2: Dict[str, any]) -> float:
-            """
-            Сравнивает характеристики основного тона двух голосов.
-
-            Args:
-                pitch1: Характеристики основного тона первого голоса
-                pitch2: Характеристики основного тона второго голоса
-
-            Returns:
-                Мера сходства по основному тону
-            """
-            if not pitch1 or not pitch2:
-                return 0.0
-
-            # Сходство по средним значениям питча
-            mean_sim = 0.0
-
-            if "mean" in pitch1 and "mean" in pitch2:
-                p1 = pitch1["mean"]
-                p2 = pitch2["mean"]
-
-                if p1 > 0 and p2 > 0:
-                    # Относительная разница
-                    rel_diff = abs(p1 - p2) / max(p1, p2)
-                    mean_sim = 1.0 - min(1.0, 2.0 * rel_diff)
-
-            # Сходство по вариативности питча
-            variability_sim = 0.0
-
-            if "std" in pitch1 and "std" in pitch2 and "mean" in pitch1 and "mean" in pitch2:
-                # Нормализованные стандартные отклонения (коэффициент вариации)
-                cv1 = pitch1["std"] / pitch1["mean"] if pitch1["mean"] > 0 else 0
-                cv2 = pitch2["std"] / pitch2["mean"] if pitch2["mean"] > 0 else 0
-
-                cv_diff = abs(cv1 - cv2)
-                variability_sim = 1.0 - min(1.0, 5.0 * cv_diff)
-
-            # Сходство по контурам питча
-            contour_sim = 0.0
-
-            if "contour" in pitch1 and "contour" in pitch2:
-                c1 = pitch1["contour"]
-                c2 = pitch2["contour"]
-
-                if "derivative_mean" in c1 and "derivative_mean" in c2:
-                    deriv_diff = abs(c1["derivative_mean"] - c2["derivative_mean"])
-                    deriv_sim = 1.0 - min(1.0, deriv_diff / 5.0)
-
-                    accel_diff = abs(c1.get("acceleration_mean", 0) - c2.get("acceleration_mean", 0))
-                    accel_sim = 1.0 - min(1.0, accel_diff / 10.0)
-
-                    reset_diff = abs(c1.get("pitch_reset", {}).get("frequency", 0) -
-                                     c2.get("pitch_reset", {}).get("frequency", 0))
-                    reset_sim = 1.0 - min(1.0, 2.0 * reset_diff)
-
-                    contour_sim = (deriv_sim + accel_sim + reset_sim) / 3.0
-
-            # Общее сходство питча (взвешенное)
-            return 0.5 * mean_sim + 0.3 * variability_sim + 0.2 * contour_sim
-
-        def _compare_jitter_shimmer(self, js1: Dict[str, float], js2: Dict[str, float]) -> float:
-            """
-            Сравнивает джиттер и шиммер двух голосов.
-
-            Args:
-                js1: Параметры джиттера и шиммера первого голоса
-                js2: Параметры джиттера и шиммера второго голоса
-
-            Returns:
-                Мера сходства по джиттеру и шиммеру
-            """
-            if not js1 or not js2:
-                return 0.0
-
-            # Сравнение локального джиттера
-            jitter_sim = 0.0
-
-            if "local_jitter" in js1 and "local_jitter" in js2:
-                j1 = js1["local_jitter"]
-                j2 = js2["local_jitter"]
-
-                # Абсолютная разница, нормализованная к допустимому диапазону
-                jitter_diff = abs(j1 - j2) / self.jitter_normal_range[1]
-                jitter_sim = 1.0 - min(1.0, jitter_diff)
-
-            # Сравнение локального шиммера
-            shimmer_sim = 0.0
-
-            if "local_shimmer" in js1 and "local_shimmer" in js2:
-                s1 = js1["local_shimmer"]
-                s2 = js2["local_shimmer"]
-
-                # Аналогично джиттеру
-                shimmer_diff = abs(s1 - s2) / self.shimmer_normal_range[1]
-                shimmer_sim = 1.0 - min(1.0, shimmer_diff)
-
-            # Сравнение по другим параметрам
-            ppq5_sim = 0.0
-            apq5_sim = 0.0
-
-            if "ppq5" in js1 and "ppq5" in js2:
-                ppq5_diff = abs(js1["ppq5"] - js2["ppq5"]) / 2.0  # Нормализация к типичному диапазону
-                ppq5_sim = 1.0 - min(1.0, ppq5_diff)
-
-            if "apq5" in js1 and "apq5" in js2:
-                apq5_diff = abs(js1["apq5"] - js2["apq5"]) / 4.0  # Нормализация к типичному диапазону
-                apq5_sim = 1.0 - min(1.0, apq5_diff)
-
-            # Взвешенное среднее
-            return 0.3 * jitter_sim + 0.3 * shimmer_sim + 0.2 * ppq5_sim + 0.2 * apq5_sim
-
-        def _compare_fricative_features(self, fric1: Dict[str, any], fric2: Dict[str, any]) -> float:
-            """
-            Сравнивает характеристики фрикативных звуков двух голосов.
-
-            Args:
-                fric1: Характеристики фрикативных первого голоса
-                fric2: Характеристики фрикативных второго голоса
-
-            Returns:
-                Мера сходства по фрикативным
-            """
-            if not fric1 or not fric2:
-                return 0.0
-
-            # Сравнение соотношений энергии в разных типах фрикативных
-            s_z_sim = 0.0
-            sh_zh_sim = 0.0
-
-            if "s_z" in fric1 and "s_z" in fric2:
-                # Сравнение средних соотношений
-                s_z_ratio_diff = abs(
-                    fric1["s_z"].get("mean_ratio", 0.0) -
-                    fric2["s_z"].get("mean_ratio", 0.0)
-                )
-                s_z_sim = 1.0 - min(1.0, 5.0 * s_z_ratio_diff)
-
-            if "sh_zh" in fric1 and "sh_zh" in fric2:
-                sh_zh_ratio_diff = abs(
-                    fric1["sh_zh"].get("mean_ratio", 0.0) -
-                    fric2["sh_zh"].get("mean_ratio", 0.0)
-                )
-                sh_zh_sim = 1.0 - min(1.0, 5.0 * sh_zh_ratio_diff)
-
-            # Сравнение спектрального центроида
-            centroid_sim = 0.0
-
-            if "centroid_mean" in fric1 and "centroid_mean" in fric2:
-                cent_diff = abs(fric1["centroid_mean"] - fric2["centroid_mean"])
-                centroid_sim = 1.0 - min(1.0, cent_diff / 1000.0)  # Нормализация к типичному диапазону разницы
-
-            # Взвешенное среднее
-            return 0.35 * s_z_sim + 0.35 * sh_zh_sim + 0.3 * centroid_sim
-
-        def _compare_nasal_features(self, nasal1: Dict[str, float], nasal2: Dict[str, float]) -> float:
-            """
-            Сравнивает характеристики носовых звуков двух голосов.
-
-            Args:
-                nasal1: Характеристики носовых первого голоса
-                nasal2: Характеристики носовых второго голоса
-
-            Returns:
-                Мера сходства по носовым
-            """
-            if not nasal1 or not nasal2:
-                return 0.0
-
-            # Сравнение резонансов
-            res1_sim = 0.0
-
-            if "nasal1_resonance_mean" in nasal1 and "nasal1_resonance_mean" in nasal2:
-                res1_diff = abs(nasal1["nasal1_resonance_mean"] - nasal2["nasal1_resonance_mean"])
-                res1_sim = 1.0 - min(1.0, 5.0 * res1_diff)
-
-            # Сравнение отношения резонансов (особенно важно для биометрии)
-            ratio_sim = 0.0
-
-            if "nasal_resonance_ratio" in nasal1 and "nasal_resonance_ratio" in nasal2:
-                ratio_diff = abs(nasal1["nasal_resonance_ratio"] - nasal2["nasal_resonance_ratio"])
-                ratio_sim = 1.0 - min(1.0, 2.0 * ratio_diff)
-
-            # Сравнение общей назализации
-            nasal_sim = 0.0
-
-            if "nasal_quality" in nasal1 and "nasal_quality" in nasal2:
-                nasal_diff = abs(nasal1["nasal_quality"] - nasal2["nasal_quality"])
-                nasal_sim = 1.0 - min(1.0, 2.0 * nasal_diff)
-
-            # Взвешенное среднее
-            return 0.3 * res1_sim + 0.5 * ratio_sim + 0.2 * nasal_sim
-
-        def _compare_voice_quality(self, vq1: Dict[str, float], vq2: Dict[str, float]) -> float:
-            """
-            Сравнивает качества голоса двух говорящих.
-
-            Args:
-                vq1: Качества голоса первого говорящего
-                vq2: Качества голоса второго говорящего
-
-            Returns:
-                Мера сходства по качеству голоса
-            """
-            if not vq1 or not vq2:
-                return 0.0
-
-            # Сравнение по каждому параметру качества
-            similarities = []
-
-            for param in ["breathiness", "creakiness", "tenseness", "nasality", "stability"]:
-                if param in vq1 and param in vq2:
-                    diff = abs(vq1[param] - vq2[param])
-                    sim = 1.0 - min(1.0, 2.0 * diff)  # Двойной вес для разницы
-                    similarities.append(sim)
-
-            # Среднее сходство
-            return np.mean(similarities) if similarities else 0.0
-
-    def get_voice_feature_extractor():
         """
-        Возвращает экземпляр экстрактора голосовых признаков.
+        Создает единый биометрический вектор признаков для идентификации говорящего.
+
+        Args:
+            pitch_features: Характеристики основного тона
+            jitter_shimmer: Параметры джиттера и шиммера
+            fricative_features: Характеристики фрикативных звуков
+            nasal_features: Характеристики носовых звуков
+            voice_quality: Оценки качества голоса
 
         Returns:
-            Экземпляр VoiceFeatureExtractor
+            Биометрический вектор признаков
         """
-        return VoiceFeatureExtractor()
+        # Компоненты вектора биометрических признаков
+        biometric_vector = []
+
+        # 1. Признаки основного тона
+        if "mean" in pitch_features and "median" in pitch_features and "std" in pitch_features:
+            biometric_vector.extend([
+                pitch_features["mean"],
+                pitch_features["median"],
+                pitch_features["std"],
+                pitch_features.get("contour", {}).get("derivative_mean", 0.0),
+                pitch_features.get("contour", {}).get("acceleration_mean", 0.0)
+            ])
+        else:
+            biometric_vector.extend([0.0, 0.0, 0.0, 0.0, 0.0])
+
+        # 2. Признаки джиттера и шиммера (микроколебания)
+        biometric_vector.extend([
+            jitter_shimmer.get("local_jitter", 0.0),
+            jitter_shimmer.get("absolute_jitter", 0.0),
+            jitter_shimmer.get("ppq5", 0.0),
+            jitter_shimmer.get("local_shimmer", 0.0),
+            jitter_shimmer.get("absolute_shimmer", 0.0),
+            jitter_shimmer.get("apq5", 0.0)
+        ])
+
+        # 3. Признаки фрикативных звуков
+        if "s_z" in fricative_features and "sh_zh" in fricative_features:
+            biometric_vector.extend([
+                fricative_features["s_z"].get("mean_ratio", 0.0),
+                fricative_features["sh_zh"].get("mean_ratio", 0.0),
+                fricative_features["centroid_mean"]
+            ])
+        else:
+            biometric_vector.extend([0.0, 0.0, 0.0])
+
+        # 4. Признаки носовых звуков
+        biometric_vector.extend([
+            nasal_features.get("nasal1_resonance_mean", 0.0),
+            nasal_features.get("nasal2_resonance_mean", 0.0),
+            nasal_features.get("nasal_resonance_ratio", 0.0)
+        ])
+
+        # 5. Признаки качества голоса
+        biometric_vector.extend([
+            voice_quality.get("breathiness", 0.0),
+            voice_quality.get("creakiness", 0.0),
+            voice_quality.get("tenseness", 0.0),
+            voice_quality.get("nasality", 0.0),
+            voice_quality.get("stability", 0.0)
+        ])
+
+        return np.array(biometric_vector)
+
+    def compare_voice_features(self, features1: Dict[str, any], features2: Dict[str, any]) -> Dict[str, float]:
+        """
+        Сравнивает характеристики двух голосов и возвращает меры сходства.
+
+        Args:
+            features1: Характеристики первого голоса
+            features2: Характеристики второго голоса
+
+        Returns:
+            Словарь с мерами сходства по разным аспектам
+        """
+        # Сходство по биометрическим векторам
+        biometric_sim = 0.0
+
+        if "biometric_vector" in features1 and "biometric_vector" in features2:
+            v1 = features1["biometric_vector"]
+            v2 = features2["biometric_vector"]
+
+            # Косинусное сходство
+            norm1 = np.linalg.norm(v1)
+            norm2 = np.linalg.norm(v2)
+
+            if norm1 > 0 and norm2 > 0:
+                biometric_sim = np.dot(v1, v2) / (norm1 * norm2)
+
+        # Сходство по основному тону
+        pitch_sim = self._compare_pitch_features(features1.get("pitch", {}), features2.get("pitch", {}))
+
+        # Сходство по джиттеру/шиммеру
+        jitter_shimmer_sim = self._compare_jitter_shimmer(
+            features1.get("jitter_shimmer", {}),
+            features2.get("jitter_shimmer", {})
+        )
+
+        # Сходство по фрикативным
+        fricative_sim = self._compare_fricative_features(
+            features1.get("fricative", {}),
+            features2.get("fricative", {})
+        )
+
+        # Сходство по носовым
+        nasal_sim = self._compare_nasal_features(
+            features1.get("nasal", {}),
+            features2.get("nasal", {})
+        )
+
+        # Сходство по качеству голоса
+        voice_quality_sim = self._compare_voice_quality(
+            features1.get("voice_quality", {}),
+            features2.get("voice_quality", {})
+        )
+
+        # Общая оценка сходства (взвешенная)
+        weights = {
+            "biometric": 1.5,
+            "pitch": 1.0,
+            "jitter_shimmer": 1.2,
+            "fricative": 0.8,
+            "nasal": 1.0,
+            "voice_quality": 0.7
+        }
+
+        similarities = {
+            "biometric": biometric_sim,
+            "pitch": pitch_sim,
+            "jitter_shimmer": jitter_shimmer_sim,
+            "fricative": fricative_sim,
+            "nasal": nasal_sim,
+            "voice_quality": voice_quality_sim
+        }
+
+        # Вычисление взвешенного среднего
+        weighted_sum = 0.0
+        weight_sum = 0.0
+
+        for key, value in similarities.items():
+            weight = weights.get(key, 1.0)
+            weighted_sum += value * weight
+            weight_sum += weight
+
+        overall_similarity = weighted_sum / weight_sum if weight_sum > 0 else 0.0
+
+        # Итоговые результаты с общей оценкой
+        similarities["overall"] = overall_similarity
+
+        return similarities
+
+    def _compare_pitch_features(self, pitch1: Dict[str, any], pitch2: Dict[str, any]) -> float:
+        """
+        Сравнивает характеристики основного тона двух голосов.
+
+        Args:
+            pitch1: Характеристики основного тона первого голоса
+            pitch2: Характеристики основного тона второго голоса
+
+        Returns:
+            Мера сходства по основному тону
+        """
+        if not pitch1 or not pitch2:
+            return 0.0
+
+        # Сходство по средним значениям питча
+        mean_sim = 0.0
+
+        if "mean" in pitch1 and "mean" in pitch2:
+            p1 = pitch1["mean"]
+            p2 = pitch2["mean"]
+
+            if p1 > 0 and p2 > 0:
+                # Относительная разница
+                rel_diff = abs(p1 - p2) / max(p1, p2)
+                mean_sim = 1.0 - min(1.0, 2.0 * rel_diff)
+
+        # Сходство по вариативности питча
+        variability_sim = 0.0
+
+        if "std" in pitch1 and "std" in pitch2 and "mean" in pitch1 and "mean" in pitch2:
+            # Нормализованные стандартные отклонения (коэффициент вариации)
+            cv1 = pitch1["std"] / pitch1["mean"] if pitch1["mean"] > 0 else 0
+            cv2 = pitch2["std"] / pitch2["mean"] if pitch2["mean"] > 0 else 0
+
+            cv_diff = abs(cv1 - cv2)
+            variability_sim = 1.0 - min(1.0, 5.0 * cv_diff)
+
+        # Сходство по контурам питча
+        contour_sim = 0.0
+
+        if "contour" in pitch1 and "contour" in pitch2:
+            c1 = pitch1["contour"]
+            c2 = pitch2["contour"]
+
+            if "derivative_mean" in c1 and "derivative_mean" in c2:
+                deriv_diff = abs(c1["derivative_mean"] - c2["derivative_mean"])
+                deriv_sim = 1.0 - min(1.0, deriv_diff / 5.0)
+
+                accel_diff = abs(c1.get("acceleration_mean", 0) - c2.get("acceleration_mean", 0))
+                accel_sim = 1.0 - min(1.0, accel_diff / 10.0)
+
+                reset_diff = abs(c1.get("pitch_reset", {}).get("frequency", 0) -
+                                 c2.get("pitch_reset", {}).get("frequency", 0))
+                reset_sim = 1.0 - min(1.0, 2.0 * reset_diff)
+
+                contour_sim = (deriv_sim + accel_sim + reset_sim) / 3.0
+
+        # Общее сходство питча (взвешенное)
+        return 0.5 * mean_sim + 0.3 * variability_sim + 0.2 * contour_sim
+
+    def _compare_jitter_shimmer(self, js1: Dict[str, float], js2: Dict[str, float]) -> float:
+        """
+        Сравнивает джиттер и шиммер двух голосов.
+
+        Args:
+            js1: Параметры джиттера и шиммера первого голоса
+            js2: Параметры джиттера и шиммера второго голоса
+
+        Returns:
+            Мера сходства по джиттеру и шиммеру
+        """
+        if not js1 or not js2:
+            return 0.0
+
+        # Сравнение локального джиттера
+        jitter_sim = 0.0
+
+        if "local_jitter" in js1 and "local_jitter" in js2:
+            j1 = js1["local_jitter"]
+            j2 = js2["local_jitter"]
+
+            # Абсолютная разница, нормализованная к допустимому диапазону
+            jitter_diff = abs(j1 - j2) / self.jitter_normal_range[1]
+            jitter_sim = 1.0 - min(1.0, jitter_diff)
+
+        # Сравнение локального шиммера
+        shimmer_sim = 0.0
+
+        if "local_shimmer" in js1 and "local_shimmer" in js2:
+            s1 = js1["local_shimmer"]
+            s2 = js2["local_shimmer"]
+
+            # Аналогично джиттеру
+            shimmer_diff = abs(s1 - s2) / self.shimmer_normal_range[1]
+            shimmer_sim = 1.0 - min(1.0, shimmer_diff)
+
+        # Сравнение по другим параметрам
+        ppq5_sim = 0.0
+        apq5_sim = 0.0
+
+        if "ppq5" in js1 and "ppq5" in js2:
+            ppq5_diff = abs(js1["ppq5"] - js2["ppq5"]) / 2.0  # Нормализация к типичному диапазону
+            ppq5_sim = 1.0 - min(1.0, ppq5_diff)
+
+        if "apq5" in js1 and "apq5" in js2:
+            apq5_diff = abs(js1["apq5"] - js2["apq5"]) / 4.0  # Нормализация к типичному диапазону
+            apq5_sim = 1.0 - min(1.0, apq5_diff)
+
+        # Взвешенное среднее
+        return 0.3 * jitter_sim + 0.3 * shimmer_sim + 0.2 * ppq5_sim + 0.2 * apq5_sim
+
+    def _compare_fricative_features(self, fric1: Dict[str, any], fric2: Dict[str, any]) -> float:
+        """
+        Сравнивает характеристики фрикативных звуков двух голосов.
+
+        Args:
+            fric1: Характеристики фрикативных первого голоса
+            fric2: Характеристики фрикативных второго голоса
+
+        Returns:
+            Мера сходства по фрикативным
+        """
+        if not fric1 or not fric2:
+            return 0.0
+
+        # Сравнение соотношений энергии в разных типах фрикативных
+        s_z_sim = 0.0
+        sh_zh_sim = 0.0
+
+        if "s_z" in fric1 and "s_z" in fric2:
+            # Сравнение средних соотношений
+            s_z_ratio_diff = abs(
+                fric1["s_z"].get("mean_ratio", 0.0) -
+                fric2["s_z"].get("mean_ratio", 0.0)
+            )
+            s_z_sim = 1.0 - min(1.0, 5.0 * s_z_ratio_diff)
+
+        if "sh_zh" in fric1 and "sh_zh" in fric2:
+            sh_zh_ratio_diff = abs(
+                fric1["sh_zh"].get("mean_ratio", 0.0) -
+                fric2["sh_zh"].get("mean_ratio", 0.0)
+            )
+            sh_zh_sim = 1.0 - min(1.0, 5.0 * sh_zh_ratio_diff)
+
+        # Сравнение спектрального центроида
+        centroid_sim = 0.0
+
+        if "centroid_mean" in fric1 and "centroid_mean" in fric2:
+            cent_diff = abs(fric1["centroid_mean"] - fric2["centroid_mean"])
+            centroid_sim = 1.0 - min(1.0, cent_diff / 1000.0)  # Нормализация к типичному диапазону разницы
+
+        # Взвешенное среднее
+        return 0.35 * s_z_sim + 0.35 * sh_zh_sim + 0.3 * centroid_sim
+
+    def _compare_nasal_features(self, nasal1: Dict[str, float], nasal2: Dict[str, float]) -> float:
+        """
+        Сравнивает характеристики носовых звуков двух голосов.
+
+        Args:
+            nasal1: Характеристики носовых первого голоса
+            nasal2: Характеристики носовых второго голоса
+
+        Returns:
+            Мера сходства по носовым
+        """
+        if not nasal1 or not nasal2:
+            return 0.0
+
+        # Сравнение резонансов
+        res1_sim = 0.0
+
+        if "nasal1_resonance_mean" in nasal1 and "nasal1_resonance_mean" in nasal2:
+            res1_diff = abs(nasal1["nasal1_resonance_mean"] - nasal2["nasal1_resonance_mean"])
+            res1_sim = 1.0 - min(1.0, 5.0 * res1_diff)
+
+        # Сравнение отношения резонансов (особенно важно для биометрии)
+        ratio_sim = 0.0
+
+        if "nasal_resonance_ratio" in nasal1 and "nasal_resonance_ratio" in nasal2:
+            ratio_diff = abs(nasal1["nasal_resonance_ratio"] - nasal2["nasal_resonance_ratio"])
+            ratio_sim = 1.0 - min(1.0, 2.0 * ratio_diff)
+
+        # Сравнение общей назализации
+        nasal_sim = 0.0
+
+        if "nasal_quality" in nasal1 and "nasal_quality" in nasal2:
+            nasal_diff = abs(nasal1["nasal_quality"] - nasal2["nasal_quality"])
+            nasal_sim = 1.0 - min(1.0, 2.0 * nasal_diff)
+
+        # Взвешенное среднее
+        return 0.3 * res1_sim + 0.5 * ratio_sim + 0.2 * nasal_sim
+
+    def _compare_voice_quality(self, vq1: Dict[str, float], vq2: Dict[str, float]) -> float:
+        """
+        Сравнивает качества голоса двух говорящих.
+
+        Args:
+            vq1: Качества голоса первого говорящего
+            vq2: Качества голоса второго говорящего
+
+        Returns:
+            Мера сходства по качеству голоса
+        """
+        if not vq1 or not vq2:
+            return 0.0
+
+        # Сравнение по каждому параметру качества
+        similarities = []
+
+        for param in ["breathiness", "creakiness", "tenseness", "nasality", "stability"]:
+            if param in vq1 and param in vq2:
+                diff = abs(vq1[param] - vq2[param])
+                sim = 1.0 - min(1.0, 2.0 * diff)  # Двойной вес для разницы
+                similarities.append(sim)
+
+        # Среднее сходство
+        return np.mean(similarities) if similarities else 0.0
+
+def get_voice_feature_extractor():
+    """
+    Возвращает экземпляр экстрактора голосовых признаков.
+
+    Returns:
+        Экземпляр VoiceFeatureExtractor
+    """
+    return VoiceFeatureExtractor()
