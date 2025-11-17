@@ -4,8 +4,8 @@ services:
   voice_match:
     build: .
     container_name: voice_match_app
-    ports:
-      - "127.0.0.1:7860:7860"
+    expose:
+      - "7860"
     volumes:
       - ./logs:/app/logs
       - ./pretrained_models:/app/pretrained_models
@@ -17,13 +17,12 @@ services:
       - voice_match_network
 
   nginx:
-    image: nginx:alpine
+    image: nginx:1.25-alpine
     container_name: voice_match_nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "127.0.0.1:8081:80"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx-docker.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - voice_match
