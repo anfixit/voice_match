@@ -16,23 +16,33 @@
 - Нажмите **Secrets and variables**
 - Выберите **Actions**
 
-### 4. Добавьте секреты
+### 4. Проверьте/добавьте секреты
 
-Нажмите кнопку **New repository secret** для каждого из следующих секретов:
+Проверьте что у вас есть следующие секреты. Если каких-то нет - добавьте, нажав **New repository secret**:
 
-#### Секрет 1: SERVER_HOST
-- **Name:** `SERVER_HOST`
-- **Value:** `185.114.245.123` (или `vh438.timeweb.ru`)
+#### Секрет 1: SSH_HOST
+- **Name:** `SSH_HOST`
+- **Value:** `109.73.194.190`
 - Нажмите **Add secret**
 
-#### Секрет 2: SERVER_USER
-- **Name:** `SERVER_USER`
-- **Value:** `cg82264`
+#### Секрет 2: SSH_USER
+- **Name:** `SSH_USER`
+- **Value:** `root`
 - Нажмите **Add secret**
 
-#### Секрет 3: SERVER_PASSWORD
-- **Name:** `SERVER_PASSWORD`
-- **Value:** `tu3cRzk2?38o`
+#### Секрет 3: SSH_KEY
+- **Name:** `SSH_KEY`
+- **Value:** (ваш приватный SSH ключ)
+- Нажмите **Add secret**
+
+#### Секрет 4: SSH_PORT
+- **Name:** `SSH_PORT`
+- **Value:** `22` (или другой если нестандартный)
+- Нажмите **Add secret**
+
+#### Секрет 5: PROJECT_PATH
+- **Name:** `PROJECT_PATH`
+- **Value:** `/opt/voice-match`
 - Нажмите **Add secret**
 
 ### 5. Проверьте секреты
@@ -40,9 +50,11 @@
 После добавления всех секретов вы должны увидеть список:
 
 ```
-SERVER_HOST       *** (Updated X minutes ago)
-SERVER_USER       *** (Updated X minutes ago)
-SERVER_PASSWORD   *** (Updated X minutes ago)
+SSH_HOST         *** (Updated X minutes ago)
+SSH_USER         *** (Updated X minutes ago)
+SSH_KEY          *** (Updated X minutes ago)
+SSH_PORT         *** (Updated X minutes ago)
+PROJECT_PATH     *** (Updated X minutes ago)
 ```
 
 ### 6. Готово!
@@ -60,10 +72,12 @@ GitHub Repository
     └── Settings
         └── Secrets and variables
             └── Actions
-                └── New repository secret
-                    ├── SERVER_HOST = 185.114.245.123
-                    ├── SERVER_USER = cg82264
-                    └── SERVER_PASSWORD = tu3cRzk2?38o
+                └── Секреты:
+                    ├── SSH_HOST = 109.73.194.190
+                    ├── SSH_USER = root
+                    ├── SSH_KEY = (приватный ключ)
+                    ├── SSH_PORT = 22
+                    └── PROJECT_PATH = /opt/voice-match
 ```
 
 ## Тестирование
