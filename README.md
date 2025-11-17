@@ -76,12 +76,12 @@ docker-compose up -d --build
 
 **Подробные руководства по развертыванию:**
 - [DEPLOYMENT.md](DEPLOYMENT.md) - общие инструкции
-- [SERVER_SETUP_109.73.194.190.md](SERVER_SETUP_109.73.194.190.md) - для текущего production сервера
+- [SERVER_SETUP_YOUR_SERVER_IP.md](SERVER_SETUP_YOUR_SERVER_IP.md) - для текущего production сервера
 
 Краткие шаги:
 
 1. **Настройка GitHub Secrets** (Settings → Secrets):
-   - `SSH_HOST` - IP сервера (109.73.194.190)
+   - `SSH_HOST` - IP сервера (YOUR_SERVER_IP)
    - `SSH_USER` - логин пользователя (root)
    - `SSH_KEY` - приватный SSH ключ
    - `SSH_PORT` - порт SSH (22)
@@ -100,7 +100,7 @@ docker-compose up -d --build
 
 5. **Push в main** - автоматический деплой запустится
 
-**Демо:** https://voice-match.ru
+**Демо:** https://your-domain.com
 
 ---
 

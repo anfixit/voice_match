@@ -1,15 +1,15 @@
-# 🌐 Настройка foodgram-gateway-1 для voice-match.ru
+# 🌐 Настройка existing_nginx_container для your-domain.com
 
-Этот файл содержит инструкции по настройке существующего Docker Nginx контейнера `foodgram-gateway-1` для проксирования voice-match.ru на наше приложение.
+Этот файл содержит инструкции по настройке существующего Docker Nginx контейнера `existing_nginx_container` для проксирования your-domain.com на наше приложение.
 
 ---
 
 ## 📋 Архитектура
 
 ```
-Internet (voice-match.ru:443)
+Internet (your-domain.com:443)
     ↓
-foodgram-gateway-1 (Docker Nginx, порты 80/443)
+existing_nginx_container (Docker Nginx, порты 80/443)
     ↓ proxy_pass на host.docker.internal:8081
 voice_match_nginx (Docker Nginx, localhost:8081)
     ↓ proxy_pass на voice_match:7860
@@ -18,7 +18,7 @@ voice_match_app (Gradio приложение)
 
 **Преимущества:**
 - ✅ Не конфликтует с существующими проектами
-- ✅ Использует общий SSL сертификат от foodgram-gateway-1
+- ✅ Использует общий SSL сертификат от existing_nginx_container
 - ✅ Централизованное управление через один Nginx
 - ✅ Изоляция: каждый проект в своей Docker сети
 
@@ -28,43 +28,43 @@ voice_match_app (Gradio приложение)
 
 ### 1.1. Настройка DNS на reg.ru
 
-Добавьте A-записи для voice-match.ru:
+Добавьте A-записи для your-domain.com:
 ```
-@    → 109.73.194.190
-www  → 109.73.194.190
+@    → YOUR_SERVER_IP
+www  → YOUR_SERVER_IP
 ```
 
 Проверка (через 15-60 минут):
 ```bash
-nslookup voice-match.ru
-# Должен вернуть: 109.73.194.190
+nslookup your-domain.com
+# Должен вернуть: YOUR_SERVER_IP
 ```
 
 ### 1.2. Получение SSL через Certbot
 
 ```bash
-# Остановите foodgram-gateway-1 временно
-docker stop foodgram-gateway-1
+# Остановите existing_nginx_container временно
+docker stop existing_nginx_container
 
 # Получите сертификат
-certbot certonly --standalone -d voice-match.ru -d www.voice-match.ru
+certbot certonly --standalone -d your-domain.com -d www.your-domain.com
 
-# Запустите foodgram-gateway-1 обратно
-docker start foodgram-gateway-1
+# Запустите existing_nginx_container обратно
+docker start existing_nginx_container
 ```
 
 Сертификаты будут в:
-- `/etc/letsencrypt/live/voice-match.ru/fullchain.pem`
-- `/etc/letsencrypt/live/voice-match.ru/privkey.pem`
+- `/etc/letsencrypt/live/your-domain.com/fullchain.pem`
+- `/etc/letsencrypt/live/your-domain.com/privkey.pem`
 
 ---
 
-## 🐋 Шаг 2: Найдите конфигурацию foodgram-gateway-1
+## 🐋 Шаг 2: Найдите конфигурацию existing_nginx_container
 
-### 2.1. Найдите docker-compose файл foodgram
+### 2.1. Найдите docker-compose файл your_existing_project
 
 ```bash
-cd /opt/foodgram
+cd /opt/your_existing_project
 cat docker-compose.production.yml
 ```
 
@@ -85,15 +85,15 @@ gateway:
 
 ```bash
 # Вариант 1: Если конфиг в файле на хосте
-cat /opt/foodgram/infra/nginx.conf
+cat /opt/your_existing_project/infra/nginx.conf
 
 # Вариант 2: Если конфиг внутри контейнера
-docker exec foodgram-gateway-1 cat /etc/nginx/nginx.conf
+docker exec existing_nginx_container cat /etc/nginx/nginx.conf
 ```
 
 ---
 
-## 📝 Шаг 3: Добавьте конфигурацию для voice-match.ru
+## 📝 Шаг 3: Добавьте конфигурацию для your-domain.com
 
 ### Метод 1: Если есть include для дополнительных конфигов
 
@@ -106,11 +106,11 @@ include /etc/nginx/conf.d/*.conf;
 
 ```bash
 # Создайте конфигурацию на хосте
-cat > /opt/foodgram/infra/conf.d/voice-match.conf << 'EOF'
+cat > /opt/your_existing_project/infra/conf.d/voice-match.conf << 'EOF'
 # HTTP - редирект на HTTPS
 server {
     listen 80;
-    server_name voice-match.ru www.voice-match.ru;
+    server_name your-domain.com www.your-domain.com;
 
     location /.well-known/acme-challenge/ {
         root /var/www/html;
@@ -124,10 +124,10 @@ server {
 # HTTPS
 server {
     listen 443 ssl http2;
-    server_name voice-match.ru www.voice-match.ru;
+    server_name your-domain.com www.your-domain.com;
 
-    ssl_certificate /etc/letsencrypt/live/voice-match.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/voice-match.ru/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
@@ -163,7 +163,7 @@ EOF
 # - ./infra/conf.d:/etc/nginx/conf.d:ro
 
 # Перезапустите
-cd /opt/foodgram
+cd /opt/your_existing_project
 docker-compose -f docker-compose.production.yml restart gateway
 ```
 
@@ -173,21 +173,21 @@ docker-compose -f docker-compose.production.yml restart gateway
 
 ```bash
 # Сделайте бэкап
-cp /opt/foodgram/infra/nginx.conf /opt/foodgram/infra/nginx.conf.backup
+cp /opt/your_existing_project/infra/nginx.conf /opt/your_existing_project/infra/nginx.conf.backup
 
 # Отредактируйте файл
-nano /opt/foodgram/infra/nginx.conf
+nano /opt/your_existing_project/infra/nginx.conf
 ```
 
-Добавьте в конец `http { }` блока (перед закрывающей скобкой) конфигурацию из `foodgram-gateway-voice-match.conf`.
+Добавьте в конец `http { }` блока (перед закрывающей скобкой) конфигурацию из `your_existing_project-gateway-voice-match.conf`.
 
 **Затем:**
 ```bash
 # Проверьте синтаксис
-docker exec foodgram-gateway-1 nginx -t
+docker exec existing_nginx_container nginx -t
 
 # Если OK - перезагрузите
-docker exec foodgram-gateway-1 nginx -s reload
+docker exec existing_nginx_container nginx -s reload
 ```
 
 ---
@@ -239,24 +239,24 @@ curl -I http://localhost:8081
 # Должен вернуть 200 OK
 ```
 
-### 5.3. Проверьте foodgram-gateway-1
+### 5.3. Проверьте existing_nginx_container
 
 ```bash
 # Проверьте конфигурацию
-docker exec foodgram-gateway-1 nginx -t
+docker exec existing_nginx_container nginx -t
 
 # Проверьте что слушает на 443
-docker exec foodgram-gateway-1 netstat -tulpn | grep 443
+docker exec existing_nginx_container netstat -tulpn | grep 443
 ```
 
 ### 5.4. Проверьте с внешнего адреса
 
 ```bash
 # С сервера
-curl -I https://voice-match.ru
+curl -I https://your-domain.com
 
 # Или откройте в браузере
-# https://voice-match.ru
+# https://your-domain.com
 ```
 
 ---
@@ -274,8 +274,8 @@ docker-compose ps
 docker logs voice_match_nginx
 docker logs voice_match_app
 
-# Проверьте логи foodgram-gateway
-docker logs foodgram-gateway-1
+# Проверьте логи your_existing_project-gateway
+docker logs existing_nginx_container
 ```
 
 ### Проблема: Не может достучаться до localhost:8081
@@ -295,10 +295,10 @@ ufw status
 
 ```bash
 # Проверьте наличие
-ls -la /etc/letsencrypt/live/voice-match.ru/
+ls -la /etc/letsencrypt/live/your-domain.com/
 
-# Проверьте что foodgram-gateway-1 монтирует /etc/letsencrypt
-docker inspect foodgram-gateway-1 | grep letsencrypt
+# Проверьте что existing_nginx_container монтирует /etc/letsencrypt
+docker inspect existing_nginx_container | grep letsencrypt
 
 # Если не монтирует - добавьте в docker-compose.yml:
 # volumes:
@@ -317,13 +317,13 @@ docker inspect foodgram-gateway-1 | grep letsencrypt
                    │ HTTPS (443)
                    │
 ┌──────────────────▼──────────────────────────────────┐
-│  foodgram-gateway-1 (Docker Nginx)                   │
+│  existing_nginx_container (Docker Nginx)                   │
 │  - Порты 80, 443                                     │
 │  - SSL сертификаты                                   │
 │  - Проксирует на разные проекты                      │
 └────┬──────────────────┬──────────────────────────────┘
      │                  │
-     │ foodgram         │ voice-match.ru
+     │ your_existing_project         │ your-domain.com
      │ → :8000          │ → localhost:8081
      │                  │
      │           ┌──────▼────────────────────┐
@@ -339,7 +339,7 @@ docker inspect foodgram-gateway-1 | grep letsencrypt
      │           └───────────────────────────┘
      │
 ┌────▼──────────────────────┐
-│ Django/foodgram backend   │
+│ Django/your_existing_project backend   │
 │ localhost:8000            │
 └───────────────────────────┘
 ```
@@ -350,15 +350,15 @@ docker inspect foodgram-gateway-1 | grep letsencrypt
 
 - [ ] DNS настроен на reg.ru
 - [ ] DNS распространился (проверено через nslookup)
-- [ ] SSL сертификат получен для voice-match.ru
+- [ ] SSL сертификат получен для your-domain.com
 - [ ] voice-match приложение запущено (docker-compose ps)
 - [ ] Порт 8081 доступен (curl http://localhost:8081)
-- [ ] Конфигурация добавлена в foodgram-gateway-1
-- [ ] SSL сертификаты доступны в foodgram-gateway-1
-- [ ] foodgram-gateway-1 перезапущен
-- [ ] Сайт доступен по https://voice-match.ru
+- [ ] Конфигурация добавлена в existing_nginx_container
+- [ ] SSL сертификаты доступны в existing_nginx_container
+- [ ] existing_nginx_container перезапущен
+- [ ] Сайт доступен по https://your-domain.com
 - [ ] Другие проекты работают нормально
 
 ---
 
-Готово! После выполнения всех шагов ваш сайт будет доступен на https://voice-match.ru 🎉
+Готово! После выполнения всех шагов ваш сайт будет доступен на https://your-domain.com 🎉
