@@ -81,9 +81,11 @@ docker-compose up -d --build
 Краткие шаги:
 
 1. **Настройка GitHub Secrets** (Settings → Secrets):
-   - `SERVER_HOST` - IP или хост сервера
-   - `SERVER_USER` - логин пользователя
-   - `SERVER_PASSWORD` - пароль от сервера
+   - `SSH_HOST` - IP сервера (109.73.194.190)
+   - `SSH_USER` - логин пользователя (root)
+   - `SSH_KEY` - приватный SSH ключ
+   - `SSH_PORT` - порт SSH (22)
+   - `PROJECT_PATH` - путь к проекту (/opt/voice-match)
 
 2. **Подготовка сервера** - запустите на сервере:
    ```bash
