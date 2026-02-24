@@ -25,50 +25,34 @@ from voice_match.detection.antispoofing import get_antispoofing_detector
 from voice_match.models.formant.tracker import get_formant_tracker
 from voice_match.features.voice_features import get_voice_feature_extractor
 
+from voice_match.constants import (
+    BANDPASS_MAX_CENTER_FREQ,
+    BANDPASS_MIN_CENTER_FREQ,
+    CONFIDENCE_LEVEL,
+    DEFAULT_WEIGHTS,
+    FORMANT_LIMITS,
+    PITCH_JUMP_THRESHOLD_SEMITONES,
+    SAMPLE_RATE,
+    SEGMENT_COUNT,
+    SEGMENT_DURATION,
+    VAD_FRAME_MS,
+    VAD_SPEECH_THRESHOLD,
+    WEIGHTS_PATH,
+)
+
 # ─────────────────────── Логирование ───────────────────────
 log = setup_logger("voice_match")
-
-# ─────────────────────── Константы ───────────────────────
-SAMPLE_RATE = 16000
-SEGMENT_DURATION = 30.0
-SEGMENT_COUNT = 5
-CONFIDENCE_LEVEL = 0.95  # Уровень доверия для интервальных оценок
-# Анатомические ограничения на форманты в Hz для взрослого мужчины
-FORMANT_LIMITS = {
-    "F1": (100, 1000),  # Гласные звуки
-    "F2": (800, 2500),  # Гласные звуки
-    "F3": (1500, 3500),  # Индивидуальные особенности тракта
-    "F4": (3000, 5000)  # Анатомия голосового тракта, фиксировано для человека
-}
-# Диапазоны ожидаемого джиттера/шиммера для нормального голоса
-JITTER_NORMAL_RANGE = (0.0, 1.04)  # в процентах
-SHIMMER_NORMAL_RANGE = (0.0, 3.81)  # в процентах
-# Типичные параметры голосовых модификаторов
-VOICE_MODIFIERS = {
-    "pitch_shift": (-12, 12),  # Полутоны
-    "formant_shift": (0.5, 2.0),  # Коэффициент
-    "robot": {"harmonic_intensity": (0.7, 1.0)}
-}
 
 # ─────────────────────── Аугментация ───────────────────────
 augment = Compose([
     Normalize(p=1.0),
-    BandPassFilter(min_center_freq=100, max_center_freq=7500, p=1.0),
+    BandPassFilter(
+    min_center_freq=BANDPASS_MIN_CENTER_FREQ,
+    max_center_freq=BANDPASS_MAX_CENTER_FREQ,
+    p=1.0,
+),
 ])
 
-# ─────────────────────── Весовые коэффициенты ───────────────────────
-DEFAULT_WEIGHTS = {
-    "ecapa": 1.5,  # Высокоуровневые речевые признаки
-    "xvec": 1.5,  # Нейросетевые дискриминативные признаки
-    "res": 1.2,  # Общее сходство голоса
-    "formant": 1.0,  # Анатомические особенности
-    "formant_dynamics": 1.5,  # Динамические особенности формант
-    "fricative": 1.2,  # Фрикативные согласные
-    "nasal": 1.3,  # Носовые резонансы
-    "vocal_tract": 1.8,  # Длина голосового тракта
-    "jitter_shimmer": 1.1,  # Микровариации голоса
-    "yamnet": 0.8  # Перцептивные признаки
-}
 
 try:
     # Определяем путь к weights.json относительно корня проекта
@@ -127,6 +111,7 @@ def lazy_formant_tracker():
 def lazy_voice_features():
     """Загружает экстрактор голосовых характеристик при первом обращении и кэширует результат."""
     from voice_match.features.voice_features import get_voice_feature_extractor
+
     return get_voice_feature_extractor()
 
 
@@ -249,7 +234,7 @@ def is_voiced(segment: np.ndarray, sr: int) -> bool:
     int16_audio = (segment * 32767).astype(np.int16)
 
     # Размер фрейма для VAD (30 мс рекомендовано)
-    frame_size = int(sr * 30 / 1000)
+    frame_size = int(sr * VAD_FRAME_MS / 1000)
     voice_frames = 0
     total_frames = 0
 
@@ -261,7 +246,7 @@ def is_voiced(segment: np.ndarray, sr: int) -> bool:
         total_frames += 1
 
     # Если более 15% фреймов содержат речь, считаем сегмент речевым
-    return voice_frames > 0.15 * total_frames if total_frames > 0 else False
+    return voice_frames > VAD_SPEECH_THRESHOLD * total_frames if total_frames > 0 else False
 
 
 def detect_voice_modification(y: np.ndarray, sr: int) -> Tuple[bool, Optional[str]]:
@@ -312,7 +297,7 @@ def detect_voice_modification(y: np.ndarray, sr: int) -> Tuple[bool, Optional[st
     # Проверяем признаки механического изменения голоса
     if pitched_segments > 0:
         # 1. Неестественные скачки основного тона
-        if pitch_changes and np.percentile(pitch_changes, 95) > 5.0:
+        if pitch_changes and np.percentile(pitch_changes, 95) > PITCH_JUMP_THRESHOLD_SEMITONES:
             return True, "pitch_shift"
 
         # 2. Признаки "робота": слишком стабильный тон

@@ -7,6 +7,9 @@ import librosa
 import numpy as np
 import matplotlib.pyplot as plt
 from voice_match.log import setup_logger
+
+from voice_match.constants import MAX_FILE_SIZE_MB
+
 from voice_match.services.comparison import compare_voices_dual
 from voice_match.services.preprocessing import convert_audio_to_wav
 
@@ -77,8 +80,8 @@ def process_files(file1_path, file2_path):
                 return f"⚠️ Ошибка: файл {file_path} не найден.", "", None
 
             file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-            if file_size_mb > 20:
-                return f"⚠️ Файл слишком большой: {file_size_mb:.1f} МБ", "Используйте файлы до 20 МБ", None
+            if file_size_mb > MAX_FILE_SIZE_MB:
+                return f"⚠️ Файл слишком большой: {file_size_mb:.1f} МБ", f'Используйте файлы до {MAX_FILE_SIZE_MB} МБ', None
 
         try:
             wav1_path, log1 = convert_audio_to_wav(file1_path)

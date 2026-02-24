@@ -7,6 +7,16 @@ import os
 import tempfile
 from voice_match.log import setup_logger
 
+from voice_match.constants import (
+    FRAME_DURATION_S,
+    HOP_DURATION_S,
+    JITTER_NORMAL_RANGE,
+    PITCH_RANGE_FEMALE,
+    PITCH_RANGE_MALE,
+    SHIMMER_NORMAL_RANGE,
+)
+
+
 log = setup_logger("voice_features")
 
 
@@ -24,20 +34,20 @@ class VoiceFeatureExtractor:
         """
         self.sample_rate = sample_rate
         # Настройки для анализа
-        self.frame_length = int(0.025 * sample_rate)  # 25 мс
-        self.hop_length = int(0.010 * sample_rate)  # 10 мс
+        self.frame_length = int(FRAME_DURATION_S * sample_rate)
+        self.hop_length = int(HOP_DURATION_S * sample_rate)
 
         # Диапазоны голосовых характеристик для взрослого мужчины/женщины
         self.pitch_range = {
-            "male": (50, 180),
-            "female": (150, 300)
+            'male': PITCH_RANGE_MALE,
+            'female': PITCH_RANGE_FEMALE,
         }
 
         # Нормальный диапазон джиттера (в %) для здорового голоса
-        self.jitter_normal_range = (0.0, 1.04)
+        self.jitter_normal_range = JITTER_NORMAL_RANGE
 
         # Нормальный диапазон шиммера (в %) для здорового голоса
-        self.shimmer_normal_range = (0.0, 3.81)
+        self.shimmer_normal_range = SHIMMER_NORMAL_RANGE
 
     def extract_all_features(self, y: np.ndarray) -> Dict[str, Union[float, np.ndarray, Dict]]:
         """
