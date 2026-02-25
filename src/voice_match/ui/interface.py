@@ -66,7 +66,7 @@ def visualize_audio(wav_path_1, wav_path_2):
 
         return temp_img_path
     except Exception as e:
-        log.error(f"Ошибка визуализации: {e}")
+        log.error('Ошибка визуализации: %s', e)
         return None
 
 
@@ -108,7 +108,7 @@ def process_files(file1_path, file2_path):
         return result_msg, log_output, viz_path
 
     except Exception as exc:
-        log.error(f"Неожиданная ошибка: {exc}")
+        log.error('Неожиданная ошибка: %s', exc)
         log.debug(traceback.format_exc())
         return "⚠️ Произошла ошибка при обработке файлов.", str(exc), None
 

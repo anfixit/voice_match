@@ -21,7 +21,7 @@ def extract_file_metadata(file_path: str) -> dict[str, Any]:
         Словарь с метаданными
     """
     if not os.path.exists(file_path):
-        log.error(f"Файл не найден: {file_path}")
+        log.error('Файл не найден: %s', file_path)
         return {}
 
     # Базовые метаданные из файловой системы
@@ -98,7 +98,7 @@ def extract_file_metadata(file_path: str) -> dict[str, Any]:
                         metadata["creation_tool"] = tags[tag]
                         break
     except Exception as e:
-        log.warning(f"Ошибка при извлечении метаданных: {e}")
+        log.warning('Ошибка при извлечении метаданных: %s', e)
 
     # Проверка целостности файла
     metadata["integrity_check"] = check_file_integrity(file_path)

@@ -23,7 +23,7 @@ class EnhancedResemblyzer:
             self.model = VoiceEncoder()
             log.info("Модель Resemblyzer успешно загружена")
         except Exception as e:
-            log.error(f"Ошибка при загрузке модели Resemblyzer: {e}")
+            log.error('Ошибка при загрузке модели Resemblyzer: %s', e)
             raise RuntimeError(f"Не удалось загрузить модель Resemblyzer: {e}") from e
 
     def embed_utterance(self, wav: np.ndarray, return_partials: bool = False) -> np.ndarray | dict[str, np.ndarray]:
@@ -58,7 +58,7 @@ class EnhancedResemblyzer:
                 return embedding
 
         except Exception as e:
-            log.error(f"Ошибка при извлечении d-вектора: {e}")
+            log.error('Ошибка при извлечении d-вектора: %s', e)
             # Возвращаем нулевой вектор при ошибке
             return np.zeros(self.embedding_dim) if not return_partials else {
                 "embedding": np.zeros(self.embedding_dim),
@@ -238,7 +238,7 @@ class EnhancedResemblyzer:
             }
 
         except Exception as e:
-            log.error(f"Ошибка при анализе временной стабильности: {e}")
+            log.error('Ошибка при анализе временной стабильности: %s', e)
             return {
                 "temporal_stability": 1.0,
                 "voice_consistency": 1.0,

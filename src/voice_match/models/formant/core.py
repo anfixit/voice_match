@@ -139,7 +139,7 @@ class FormantAnalyzer:
                 best_order = order
 
         # Логирование для отладки
-        log.debug(f"Адаптивный LPC порядок: {best_order} (пики: {significant_peaks})")
+        log.debug('Адаптивный LPC порядок: %s (пики: %s)', best_order, significant_peaks)
 
         return best_order
 

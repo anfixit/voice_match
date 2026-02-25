@@ -440,7 +440,7 @@ def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> dict[s
 
         return formants_result
     except Exception as e:
-        log.warning(f"Ошибка при извлечении формант: {e}")
+        log.warning('Ошибка при извлечении формант: %s', e)
         return None
 
 
@@ -568,7 +568,7 @@ def extract_fricative_features(y: np.ndarray, sr: int) -> np.ndarray:
 
         return features
     except Exception as e:
-        log.warning(f"Ошибка при извлечении признаков фрикативных: {e}")
+        log.warning('Ошибка при извлечении признаков фрикативных: %s', e)
         return np.zeros(8)
 
 
@@ -626,7 +626,7 @@ def extract_nasal_features(y: np.ndarray, sr: int) -> np.ndarray:
 
         return features
     except Exception as e:
-        log.warning(f"Ошибка при извлечении признаков носовых: {e}")
+        log.warning('Ошибка при извлечении признаков носовых: %s', e)
         return np.zeros(8)
 
 
@@ -726,7 +726,7 @@ def extract_jitter_shimmer(y: np.ndarray, sr: int) -> np.ndarray:
 
         return features
     except Exception as e:
-        log.warning(f"Ошибка при извлечении джиттера/шиммера: {e}")
+        log.warning('Ошибка при извлечении джиттера/шиммера: %s', e)
         return np.zeros(8)
 
 
@@ -755,7 +755,7 @@ def extract_yamnet(y: np.ndarray, sr: int) -> np.ndarray:
         # Возвращаем среднее значение эмбеддингов по времени
         return embeddings.numpy().mean(axis=0)
     except Exception as e:
-        log.warning(f"Ошибка при извлечении YAMNet признаков: {e}")
+        log.warning('Ошибка при извлечении YAMNet признаков: %s', e)
         return np.zeros(1024)  # YAMNet embeddings имеют размерность 1024
 
 
@@ -806,7 +806,7 @@ def compare_voices_dual(file1: str, file2: str, weights: dict = weights) -> tupl
     Returns:
         (verdict, summary): Вердикт о сходстве и подробный отчет
     """
-    log.info(f"Сравнение файлов: {file1} и {file2}")
+    log.info('Сравнение файлов: %s и %s', file1, file2)
 
     # Загрузка аудиофайлов
     y1, _ = librosa.load(file1, sr=SAMPLE_RATE)

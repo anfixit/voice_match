@@ -34,7 +34,7 @@ class EnhancedEcapa:
             )
             log.info("Модель ECAPA-TDNN успешно загружена")
         except Exception as e:
-            log.error(f"Ошибка при загрузке модели ECAPA-TDNN: {e}")
+            log.error('Ошибка при загрузке модели ECAPA-TDNN: %s', e)
             raise RuntimeError(f"Не удалось загрузить модель ECAPA-TDNN: {e}") from e
 
     def encode_batch(self, waveforms: torch.Tensor) -> torch.Tensor:
@@ -252,7 +252,7 @@ class EnhancedEcapa:
                 return layer_outputs
 
         except Exception as e:
-            log.error(f"Ошибка при извлечении промежуточных признаков: {e}")
+            log.error('Ошибка при извлечении промежуточных признаков: %s', e)
             return {"embedding": self.encode_batch(waveform)}
 
 

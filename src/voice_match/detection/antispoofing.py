@@ -114,7 +114,7 @@ class AntiSpoofingDetector:
                 self.model.eval()
                 log.info("Загружена предобученная модель для обнаружения подделок")
             except Exception as e:
-                log.warning(f"Не удалось загрузить предобученную модель: {e}")
+                log.warning('Не удалось загрузить предобученную модель: %s', e)
                 # Дополнительная инициализация, если модель не загружена
                 self._initialize_pretrained_weights()
         else:

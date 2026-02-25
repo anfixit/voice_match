@@ -629,7 +629,7 @@ class FormantStatistics:
         if 0 < level < 1:
             self.confidence_level = level
         else:
-            log.warning(f"Неверный уровень доверия: {level}. Используется значение по умолчанию 0.95.")
+            log.warning('Неверный уровень доверия: %s. Используется значение по умолчанию 0.95.', level)
             self.confidence_level = 0.95
 
 

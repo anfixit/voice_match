@@ -34,7 +34,7 @@ class EnhancedYAMNet:
 
             log.info("Модель YAMNet успешно загружена")
         except Exception as e:
-            log.error(f"Ошибка при загрузке модели YAMNet: {e}")
+            log.error('Ошибка при загрузке модели YAMNet: %s', e)
             raise RuntimeError(f"Не удалось загрузить модель YAMNet: {e}") from e
 
     def __call__(self, waveform: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:

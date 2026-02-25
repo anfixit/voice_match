@@ -35,7 +35,7 @@ class EnhancedXVector:
             self.model = self.model.to(self.device)
             log.info("Модель X-vector успешно загружена")
         except Exception as e:
-            log.error(f"Ошибка при загрузке модели X-vector: {e}")
+            log.error('Ошибка при загрузке модели X-vector: %s', e)
             raise RuntimeError(f"Не удалось загрузить модель X-vector: {e}") from e
 
     def __call__(self, waveform: torch.Tensor) -> torch.Tensor:

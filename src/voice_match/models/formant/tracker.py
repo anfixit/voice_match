@@ -99,7 +99,7 @@ class FormantTracker:
                     formant_tracks["F4"].append(f_values.get("F4", 0.0))
                     formant_tracks["timestamps"].append(timestamp)
             except Exception as e:
-                log.warning(f"Ошибка при извлечении формант для фрейма {i}: {e}")
+                log.warning('Ошибка при извлечении формант для фрейма %s: %s', i, e)
                 continue
 
         # Преобразование в numpy arrays

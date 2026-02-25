@@ -89,9 +89,9 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> tuple[s
     # Проверка целостности файла и его параметров
     try:
         file_info = get_audio_info(file_path)
-        log.info(f"Информация о файле: {file_info}")
+        log.info('Информация о файле: %s', file_info)
     except Exception as exc:
-        log.error(f"Не удалось получить информацию о файле: {exc}")
+        log.error('Не удалось получить информацию о файле: %s', exc)
         file_info = {}
 
     # Проверка требуемых параметров
@@ -107,7 +107,7 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> tuple[s
     )
 
     if not needs_conversion and ext == ".wav":
-        log.info(f"Файл {file_path} уже в WAV формате с требуемыми параметрами")
+        log.info('Файл %s уже в WAV формате с требуемыми параметрами', file_path)
         return file_path, f"Файл уже в требуемом формате: {TARGET_SAMPLE_RATE} Hz, {TARGET_CHANNELS} канал(ов)"
 
     # Загрузка и конвертация
@@ -123,15 +123,15 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> tuple[s
             if audio.dBFS < -30:
                 # Если файл слишком тихий, нормализуем до -3dB
                 audio = audio.normalize(headroom=3.0)
-                log.info(f"Файл {file_path} нормализован (был слишком тихим)")
+                log.info('Файл %s нормализован (был слишком тихим)', file_path)
 
             # Обработка некорректной продолжительности
             if len(audio) < 1000:  # Меньше 1 секунды
-                log.warning(f"Файл {file_path} слишком короткий: {len(audio) / 1000:.2f} сек")
+                log.warning('Файл %s слишком короткий: %s сек', file_path, f'{len(audio) / 1000:.2f}')
 
         except Exception as pydub_error:
             # Если pydub не справляется, используем ffmpeg напрямую
-            log.warning(f"Ошибка при использовании pydub: {pydub_error}. Используем ffmpeg напрямую")
+            log.warning('Ошибка при использовании pydub: %s. Используем ffmpeg напрямую', pydub_error)
 
             temp_fd, temp_path = tempfile.mkstemp(suffix=".wav")
             os.close(temp_fd)
@@ -150,7 +150,7 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> tuple[s
             result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
 
             if result.returncode != 0:
-                log.error(f"Ошибка при выполнении ffmpeg: {result.stderr}")
+                log.error('Ошибка при выполнении ffmpeg: %s', result.stderr)
                 raise RuntimeError(f"Ошибка при конвертации с помощью ffmpeg: {result.stderr}") from None
 
             # Загружаем результат через pydub для дальнейшей обработки
@@ -165,7 +165,7 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> tuple[s
         audio.export(temp_path, format="wav", parameters=["-q:a", "0"])
 
     except Exception as exc:
-        log.error(f"Ошибка при конвертации файла {file_path}: {exc}")
+        log.error('Ошибка при конвертации файла %s: %s', file_path, exc)
         raise RuntimeError(
             f"Ошибка при конвертации файла {file_path}\n"
             f"Убедитесь, что файл корректный и ffmpeg поддерживает его кодек.\n"
@@ -175,13 +175,13 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> tuple[s
     # Проверяем результат конвертации
     try:
         converted_info = get_audio_info(temp_path)
-        log.info(f"Информация о сконвертированном файле: {converted_info}")
+        log.info('Информация о сконвертированном файле: %s', converted_info)
 
         if (converted_info.get("sample_rate") != TARGET_SAMPLE_RATE or
                 converted_info.get("channels") != TARGET_CHANNELS):
             log.warning("Параметры сконвертированного файла не соответствуют ожидаемым")
     except Exception as exc:
-        log.warning(f"Не удалось проверить параметры сконвертированного файла: {exc}")
+        log.warning('Не удалось проверить параметры сконвертированного файла: %s', exc)
 
     log_msg = (
         f"Файл {file_path} успешно конвертирован в WAV: {temp_path} "
@@ -252,7 +252,7 @@ def get_audio_info(file_path: str) -> dict[str, Any]:
                     info["duration"] = float(format_info["duration"])
                 info["format"] = format_info.get("format_name", "unknown")
         except Exception as ffprobe_exc:
-            log.error(f"Не удалось получить информацию о файле через ffprobe: {ffprobe_exc}")
+            log.error('Не удалось получить информацию о файле через ffprobe: %s', ffprobe_exc)
             raise RuntimeError(f"Не удалось получить информацию о файле: {exc}. {ffprobe_exc}") from exc
 
     return info
@@ -399,7 +399,7 @@ def extract_voice_segment(wav_path: str, max_duration: int = 58, min_duration: i
         return segment_path, log_msg
 
     except Exception as e:
-        log.warning(f"Не удалось извлечь сегмент из {wav_path}: {e}")
+        log.warning('Не удалось извлечь сегмент из %s: %s', wav_path, e)
         return wav_path, f"Не удалось извлечь сегмент: {e!s}"
 
 
@@ -509,7 +509,7 @@ def remove_silence(wav_path: str, min_silence_duration: float = 0.3,
         return processed_path, log_msg
 
     except Exception as e:
-        log.warning(f"Ошибка при удалении тишины из {wav_path}: {e}")
+        log.warning('Ошибка при удалении тишины из %s: %s', wav_path, e)
         return wav_path, f"Не удалось удалить тишину: {e!s}"
 
 
@@ -575,7 +575,7 @@ def enhance_speech(wav_path: str, enhance_formants: bool = True,
         return enhanced_path, log_msg
 
     except Exception as e:
-        log.warning(f"Ошибка при улучшении качества файла {wav_path}: {e}")
+        log.warning('Ошибка при улучшении качества файла %s: %s', wav_path, e)
         return wav_path, f"Не удалось улучшить качество: {e!s}"
 
 
@@ -736,7 +736,7 @@ def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str
         return False, details, log_msg
 
     except Exception as e:
-        log.warning(f"Ошибка при анализе модификаций голоса в {wav_path}: {e}")
+        log.warning('Ошибка при анализе модификаций голоса в %s: %s', wav_path, e)
         return False, {}, f"Не удалось проанализировать модификации голоса: {e!s}"
 
     def cut_speech_segments(wav_path: str, min_segment_duration: float = 3.0,
@@ -860,7 +860,7 @@ def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str
             return segment_paths, log_msg
 
         except Exception as e:
-            log.warning(f"Ошибка при выделении речевых сегментов из {wav_path}: {e}")
+            log.warning('Ошибка при выделении речевых сегментов из %s: %s', wav_path, e)
             return [wav_path], f"Не удалось выделить речевые сегменты: {e!s}"
 
     def preprocess_for_forensic_analysis(file_path: str) -> tuple[str, dict[str, Any], str]:
@@ -878,7 +878,7 @@ def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str
 
         try:
             # 1. Проверка формата и конвертация в WAV
-            log.info(f"Начало обработки файла: {file_path}")
+            log.info('Начало обработки файла: %s', file_path)
             wav_path, log_msg = convert_audio_to_wav(file_path)
             log_messages.append(log_msg)
 
@@ -889,7 +889,7 @@ def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str
             log_messages.append(mod_log)
 
             if is_modified:
-                log.warning(f"Обнаружены признаки модификации голоса в файле {file_path}")
+                log.warning('Обнаружены признаки модификации голоса в файле %s', file_path)
 
             # 3. Удаление тишины
             nosilence_path, log_msg = remove_silence(wav_path)
@@ -912,7 +912,7 @@ def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str
 
             # Формирование итогового отчета
             full_log = "\n".join(log_messages)
-            log.info(f"Завершена обработка файла: {file_path}")
+            log.info('Завершена обработка файла: %s', file_path)
 
             return segment_path, metadata, full_log
 
@@ -1050,7 +1050,7 @@ def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str
             return segments, log_msg
 
         except Exception as e:
-            log.warning(f"Ошибка при подготовке сегментов из {wav_path}: {e}")
+            log.warning('Ошибка при подготовке сегментов из %s: %s', wav_path, e)
             # В случае ошибки возвращаем весь файл как один сегмент
             y, sr = librosa.load(wav_path, sr=None)
             return [y], f"Ошибка при подготовке сегментов: {e!s}"
@@ -1164,5 +1164,5 @@ def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str
             return plot_path, log_msg
 
         except Exception as e:
-            log.warning(f"Ошибка при создании визуализации для {wav_path}: {e}")
+            log.warning('Ошибка при создании визуализации для %s: %s', wav_path, e)
             return "", f"Не удалось создать визуализацию: {e!s}"
