@@ -1,29 +1,17 @@
-import os
 import json
+
+from functools import lru_cache
+
 import librosa
+import noisereduce as nr
 import numpy as np
+import scipy.signal
+import scipy.stats
 import tensorflow as tf
 import torch
 import webrtcvad
-import soundfile as sf
-import noisereduce as nr
-import scipy.signal
-import scipy.stats
-import logging
-from voice_match.log import setup_logger
-from functools import lru_cache
-from typing import Dict, List, Tuple, Optional, Union
-from audiomentations import Compose, Normalize, BandPassFilter
 
-from voice_match.models.yamnet import get_yamnet
-from voice_match.models.xvector import get_xvector
-from voice_match.models.ecapa import get_ecapa
-from voice_match.models.resemblyzer import get_resemblyzer
-
-# Импорты новых моделей
-from voice_match.detection.antispoofing import get_antispoofing_detector
-from voice_match.models.formant.tracker import get_formant_tracker
-from voice_match.features.voice_features import get_voice_feature_extractor
+from audiomentations import BandPassFilter, Compose, Normalize
 
 from voice_match.constants import (
     BANDPASS_MAX_CENTER_FREQ,
@@ -39,6 +27,16 @@ from voice_match.constants import (
     VAD_SPEECH_THRESHOLD,
     WEIGHTS_PATH,
 )
+
+# Импорты новых моделей
+from voice_match.detection.antispoofing import get_antispoofing_detector
+from voice_match.features.voice_features import get_voice_feature_extractor
+from voice_match.log import setup_logger
+from voice_match.models.ecapa import get_ecapa
+from voice_match.models.formant.tracker import get_formant_tracker
+from voice_match.models.resemblyzer import get_resemblyzer
+from voice_match.models.xvector import get_xvector
+from voice_match.models.yamnet import get_yamnet
 
 # ─────────────────────── Логирование ───────────────────────
 log = setup_logger("voice_match")
@@ -94,21 +92,18 @@ def lazy_res():
 @lru_cache(maxsize=1)
 def lazy_antispoofing():
     """Загружает детектор подделок голоса при первом обращении и кэширует результат."""
-    from voice_match.detection.antispoofing import get_antispoofing_detector
     return get_antispoofing_detector()
 
 
 @lru_cache(maxsize=1)
 def lazy_formant_tracker():
     """Загружает трекер формант при первом обращении и кэширует результат."""
-    from voice_match.models.formant.tracker import get_formant_tracker
     return get_formant_tracker()
 
 
 @lru_cache(maxsize=1)
 def lazy_voice_features():
     """Загружает экстрактор голосовых характеристик при первом обращении и кэширует результат."""
-    from voice_match.features.voice_features import get_voice_feature_extractor
 
     return get_voice_feature_extractor()
 
@@ -145,7 +140,7 @@ def preprocess(y: np.ndarray) -> np.ndarray:
 
 
 def get_segments(y: np.ndarray, sr: int, duration: float = SEGMENT_DURATION,
-                 count: int = SEGMENT_COUNT) -> List[np.ndarray]:
+                 count: int = SEGMENT_COUNT) -> list[np.ndarray]:
     """
     Извлекает сегменты речи из аудиосигнала с перекрытием.
     Выбирает только сегменты с обнаруженной речью.
@@ -161,7 +156,6 @@ def get_segments(y: np.ndarray, sr: int, duration: float = SEGMENT_DURATION,
     """
     window_size = int(sr * duration)
     hop = int(sr * duration / 2)  # 50% перекрытие
-    segments = []
 
     # Вычисляем энергию сигнала для каждого фрейма
     energy = librosa.feature.rms(y=y)[0]
@@ -207,7 +201,7 @@ def get_segments(y: np.ndarray, sr: int, duration: float = SEGMENT_DURATION,
 
     # Если нашли меньше сегментов, чем нужно, используем все что есть
     if len(selected_segments) < count and energy_segments:
-        remaining = count - len(selected_segments)
+        count - len(selected_segments)
         for segment, _, _ in energy_segments:
             if segment not in selected_segments:
                 selected_segments.append(segment)
@@ -247,7 +241,7 @@ def is_voiced(segment: np.ndarray, sr: int) -> bool:
     return voice_frames > VAD_SPEECH_THRESHOLD * total_frames if total_frames > 0 else False
 
 
-def detect_voice_modification(y: np.ndarray, sr: int) -> Tuple[bool, Optional[str]]:
+def detect_voice_modification(y: np.ndarray, sr: int) -> tuple[bool, str | None]:
     """
     Обнаруживает признаки использования голосовых модификаторов.
 
@@ -341,7 +335,7 @@ def cosine_similarity(v1: np.ndarray, v2: np.ndarray) -> float:
     return np.dot(v1, v2)
 
 
-def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> Dict[str, np.ndarray]:
+def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> dict[str, np.ndarray]:
     """
     Расширенное извлечение формант с отслеживанием динамики.
 
@@ -379,17 +373,17 @@ def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> Dict[s
             frame = frame * np.hamming(len(frame))
 
             # Выполняем LPC-анализ
-            A = librosa.lpc(frame, order=order)
+            lpc_coeffs = librosa.lpc(frame, order=order)
 
             # Рассчитываем частотную характеристику
-            w, h = scipy.signal.freqz(1, A, worN=2000)
+            w, h = scipy.signal.freqz(1, lpc_coeffs, worN=2000)
             freqs = w * sr / (2 * np.pi)
 
             # Преобразуем к амплитудам
             magnitude = np.abs(h)
 
             # Находим пики (форманты)
-            peaks, properties = scipy.signal.find_peaks(
+            peaks, _properties = scipy.signal.find_peaks(
                 magnitude,
                 height=0.1,
                 distance=5,
@@ -404,7 +398,7 @@ def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> Dict[s
             for peak in sorted_peaks:
                 freq = freqs[peak]
                 # Проверяем, попадает ли в диапазон какой-либо форманты
-                for i, (formant, (fmin, fmax)) in enumerate(FORMANT_LIMITS.items(), 1):
+                for i, (_formant, (fmin, fmax)) in enumerate(FORMANT_LIMITS.items(), 1):
                     if fmin <= freq <= fmax:
                         valid_formants.append((i, freq, peak))
                         break
@@ -421,7 +415,7 @@ def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> Dict[s
                 formant_key = f"F{i}"
                 bandwidth_key = f"F{i}_bandwidth"
 
-                if i in grouped_formants and grouped_formants[i]:
+                if grouped_formants.get(i):
                     # Выбираем пик с наибольшей амплитудой
                     best_peak = max(grouped_formants[i], key=lambda x: magnitude[x[1]])
                     formants_result[formant_key] = np.append(formants_result[formant_key], best_peak[0])
@@ -450,7 +444,7 @@ def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> Dict[s
         return None
 
 
-def extract_formant_dynamics(formants: Dict[str, np.ndarray]) -> np.ndarray:
+def extract_formant_dynamics(formants: dict[str, np.ndarray]) -> np.ndarray:
     """
     Извлекает характеристики динамики формант, важные для идентификации.
 
@@ -484,7 +478,7 @@ def extract_formant_dynamics(formants: Dict[str, np.ndarray]) -> np.ndarray:
     return np.array(features)
 
 
-def extract_vocal_tract_length(formants: Dict[str, np.ndarray]) -> float:
+def extract_vocal_tract_length(formants: dict[str, np.ndarray]) -> float:
     """
     Оценивает длину голосового тракта на основе формант F1-F4.
     Длина тракта - биометрическая характеристика, не меняющаяся со временем.
@@ -596,7 +590,7 @@ def extract_nasal_features(y: np.ndarray, sr: int) -> np.ndarray:
         hop_length = int(0.010 * sr)
 
         # STFT для спектрального анализа
-        S = np.abs(librosa.stft(y, n_fft=frame_length, hop_length=hop_length))
+        spectrogram = np.abs(librosa.stft(y, n_fft=frame_length, hop_length=hop_length))
 
         # Частотные полосы для носовых резонансов
         # Основной носовой резонанс: 250-450 Hz
@@ -606,11 +600,11 @@ def extract_nasal_features(y: np.ndarray, sr: int) -> np.ndarray:
         mask_nasal2 = (freq_bins >= 1000) & (freq_bins <= 1200)
 
         # Средняя энергия в полосах
-        energy_nasal1 = np.mean(S[mask_nasal1, :], axis=0)
-        energy_nasal2 = np.mean(S[mask_nasal2, :], axis=0)
+        energy_nasal1 = np.mean(spectrogram[mask_nasal1, :], axis=0)
+        energy_nasal2 = np.mean(spectrogram[mask_nasal2, :], axis=0)
 
         # Отношение ко всему спектру
-        energy_total = np.mean(S, axis=0)
+        energy_total = np.mean(spectrogram, axis=0)
         ratio1 = np.zeros_like(energy_nasal1)
         ratio2 = np.zeros_like(energy_nasal2)
 
@@ -765,7 +759,7 @@ def extract_yamnet(y: np.ndarray, sr: int) -> np.ndarray:
         return np.zeros(1024)  # YAMNet embeddings имеют размерность 1024
 
 
-def calculate_confidence_interval(similarities: List[float]) -> Tuple[float, float]:
+def calculate_confidence_interval(similarities: list[float]) -> tuple[float, float]:
     """
     Вычисляет доверительный интервал для средней оценки сходства.
 
@@ -800,7 +794,7 @@ def calculate_confidence_interval(similarities: List[float]) -> Tuple[float, flo
     return (lower_bound, upper_bound)
 
 
-def compare_voices_dual(file1: str, file2: str, weights: dict = weights) -> Tuple[str, str]:
+def compare_voices_dual(file1: str, file2: str, weights: dict = weights) -> tuple[str, str]:
     """
     Выполняет комплексное сравнение двух голосовых файлов.
 
@@ -909,7 +903,7 @@ def compare_voices_dual(file1: str, file2: str, weights: dict = weights) -> Tupl
     res = lazy_res()
 
     # Сравнение сегментов
-    for s1, s2 in zip(segments1, segments2):
+    for s1, s2 in zip(segments1, segments2, strict=False):
         # Преобразование в тензоры для нейросетевых моделей
         t1 = torch.tensor(s1).unsqueeze(0)
         t2 = torch.tensor(s2).unsqueeze(0)

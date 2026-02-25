@@ -1,16 +1,26 @@
 import os
-import tempfile
-import numpy as np
-import librosa
-import soundfile as sf
 import subprocess
-import scipy.signal
-import scipy.io.wavfile
+import tempfile
+
+from typing import Any
+
+import librosa
+import matplotlib.pyplot as plt
 import noisereduce as nr
-from voice_match.log import setup_logger
-from typing import Tuple, List, Dict, Optional, Union, Any
+import numpy as np
+import scipy.io.wavfile
+import scipy.signal
+import soundfile as sf
+
 from pydub import AudioSegment
-from voice_match.constants import SUPPORTED_EXTENSIONS, TARGET_SAMPLE_RATE, TARGET_CHANNELS
+
+from voice_match.constants import (
+    SEGMENT_DURATION,
+    SUPPORTED_EXTENSIONS,
+    TARGET_CHANNELS,
+    TARGET_SAMPLE_RATE,
+)
+from voice_match.log import setup_logger
 
 # ──────────────── Логгер ────────────────
 log = setup_logger("utils")
@@ -59,7 +69,7 @@ class AudioSegmentInfo:
         return self.quality_score
 
 
-def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> Tuple[str, str]:
+def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> tuple[str, str]:
     """
     Конвертирует аудиофайл в WAV формат с контролем качества.
     Поддерживает нормализацию, ресемплирование и установку стерео/моно.
@@ -141,7 +151,7 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> Tuple[s
 
             if result.returncode != 0:
                 log.error(f"Ошибка при выполнении ffmpeg: {result.stderr}")
-                raise RuntimeError(f"Ошибка при конвертации с помощью ffmpeg: {result.stderr}")
+                raise RuntimeError(f"Ошибка при конвертации с помощью ffmpeg: {result.stderr}") from None
 
             # Загружаем результат через pydub для дальнейшей обработки
             audio = AudioSegment.from_file(temp_path)
@@ -160,7 +170,7 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> Tuple[s
             f"Ошибка при конвертации файла {file_path}\n"
             f"Убедитесь, что файл корректный и ffmpeg поддерживает его кодек.\n"
             f"Детали: {exc}"
-        )
+        ) from exc
 
     # Проверяем результат конвертации
     try:
@@ -169,7 +179,7 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> Tuple[s
 
         if (converted_info.get("sample_rate") != TARGET_SAMPLE_RATE or
                 converted_info.get("channels") != TARGET_CHANNELS):
-            log.warning(f"Параметры сконвертированного файла не соответствуют ожидаемым")
+            log.warning("Параметры сконвертированного файла не соответствуют ожидаемым")
     except Exception as exc:
         log.warning(f"Не удалось проверить параметры сконвертированного файла: {exc}")
 
@@ -180,7 +190,7 @@ def convert_audio_to_wav(file_path: str, force_resample: bool = True) -> Tuple[s
     return temp_path, log_msg
 
 
-def get_audio_info(file_path: str) -> Dict[str, Any]:
+def get_audio_info(file_path: str) -> dict[str, Any]:
     """
     Извлекает информацию о аудиофайле.
 
@@ -243,13 +253,13 @@ def get_audio_info(file_path: str) -> Dict[str, Any]:
                 info["format"] = format_info.get("format_name", "unknown")
         except Exception as ffprobe_exc:
             log.error(f"Не удалось получить информацию о файле через ffprobe: {ffprobe_exc}")
-            raise RuntimeError(f"Не удалось получить информацию о файле: {exc}. {ffprobe_exc}")
+            raise RuntimeError(f"Не удалось получить информацию о файле: {exc}. {ffprobe_exc}") from exc
 
     return info
 
 
 def extract_voice_segment(wav_path: str, max_duration: int = 58, min_duration: int = 5,
-                          snr_threshold: float = 10.0) -> Tuple[str, str]:
+                          snr_threshold: float = 10.0) -> tuple[str, str]:
     """
     Извлекает наиболее качественный сегмент речи из WAV файла.
     Анализирует энергию, SNR и наличие речи для выбора оптимального сегмента.
@@ -390,11 +400,11 @@ def extract_voice_segment(wav_path: str, max_duration: int = 58, min_duration: i
 
     except Exception as e:
         log.warning(f"Не удалось извлечь сегмент из {wav_path}: {e}")
-        return wav_path, f"Не удалось извлечь сегмент: {str(e)}"
+        return wav_path, f"Не удалось извлечь сегмент: {e!s}"
 
 
 def remove_silence(wav_path: str, min_silence_duration: float = 0.3,
-                   silence_threshold: float = 0.01) -> Tuple[str, str]:
+                   silence_threshold: float = 0.01) -> tuple[str, str]:
     """
     Удаляет длительные участки тишины из аудиофайла.
 
@@ -500,11 +510,11 @@ def remove_silence(wav_path: str, min_silence_duration: float = 0.3,
 
     except Exception as e:
         log.warning(f"Ошибка при удалении тишины из {wav_path}: {e}")
-        return wav_path, f"Не удалось удалить тишину: {str(e)}"
+        return wav_path, f"Не удалось удалить тишину: {e!s}"
 
 
 def enhance_speech(wav_path: str, enhance_formants: bool = True,
-                   reduce_noise: bool = True) -> Tuple[str, str]:
+                   reduce_noise: bool = True) -> tuple[str, str]:
     """
     Улучшает качество речи, усиливая форманты и подавляя шум.
 
@@ -566,10 +576,10 @@ def enhance_speech(wav_path: str, enhance_formants: bool = True,
 
     except Exception as e:
         log.warning(f"Ошибка при улучшении качества файла {wav_path}: {e}")
-        return wav_path, f"Не удалось улучшить качество: {str(e)}"
+        return wav_path, f"Не удалось улучшить качество: {e!s}"
 
 
-def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str]:
+def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str]:
     """
     Обнаруживает признаки искусственной модификации голоса.
 
@@ -693,10 +703,10 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
 
         # Проверка на признаки Voice Changer
         # 6. Проверка на равномерные гармоники
-        S = np.abs(librosa.stft(y, n_fft=2048, hop_length=512))
+        spectrogram = np.abs(librosa.stft(y, n_fft=2048, hop_length=512))
 
         # Среднее спектральное распределение
-        mean_spectrum = np.mean(S, axis=1)
+        mean_spectrum = np.mean(spectrogram, axis=1)
 
         # Автокорреляция для обнаружения регулярных гармоник
         autocorr = np.correlate(mean_spectrum, mean_spectrum, mode='full')
@@ -727,10 +737,10 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
 
     except Exception as e:
         log.warning(f"Ошибка при анализе модификаций голоса в {wav_path}: {e}")
-        return False, {}, f"Не удалось проанализировать модификации голоса: {str(e)}"
+        return False, {}, f"Не удалось проанализировать модификации голоса: {e!s}"
 
     def cut_speech_segments(wav_path: str, min_segment_duration: float = 3.0,
-                            max_segments: int = 5) -> Tuple[List[str], str]:
+                            max_segments: int = 5) -> tuple[list[str], str]:
         """
         Нарезает аудиофайл на отдельные сегменты с речью для последующего анализа.
 
@@ -759,7 +769,7 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
             speech_frames = (energy > energy_threshold)
 
             # Сглаживание для устранения дрожания
-            from scipy.ndimage import binary_opening, binary_closing
+            from scipy.ndimage import binary_closing, binary_opening
             speech_frames = binary_closing(binary_opening(speech_frames, np.ones(5)), np.ones(10))
 
             # Преобразование фреймов в отметки времени
@@ -851,9 +861,9 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
 
         except Exception as e:
             log.warning(f"Ошибка при выделении речевых сегментов из {wav_path}: {e}")
-            return [wav_path], f"Не удалось выделить речевые сегменты: {str(e)}"
+            return [wav_path], f"Не удалось выделить речевые сегменты: {e!s}"
 
-    def preprocess_for_forensic_analysis(file_path: str) -> Tuple[str, Dict[str, Any], str]:
+    def preprocess_for_forensic_analysis(file_path: str) -> tuple[str, dict[str, Any], str]:
         """
         Выполняет полную предобработку аудиофайла для судебного фоноскопического анализа.
 
@@ -912,7 +922,7 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
             return file_path, {"error": str(e)}, error_msg
 
     def prepare_segments_for_comparison(wav_path: str, segment_count: int = 5,
-                                        segment_duration: float = 30.0) -> Tuple[List[np.ndarray], str]:
+                                        segment_duration: float = 30.0) -> tuple[list[np.ndarray], str]:
         """
         Подготавливает оптимальные сегменты для сравнения голосов.
 
@@ -951,7 +961,7 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
                 return segments, log_msg
 
             # Преобразование индексов фреймов в сэмплы
-            speech_samples = librosa.frames_to_samples(speech_frames, hop_length=hop_length)
+            librosa.frames_to_samples(speech_frames, hop_length=hop_length)
 
             # Определение речевых сегментов
             segments = []
@@ -977,7 +987,7 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
                 speech_ratio = np.sum(segment_energy > energy_threshold) / len(segment_energy)
 
                 # Проверка вокализации (наличие основного тона)
-                pitches, magnitudes = librosa.piptrack(y=segment, sr=sr)
+                _pitches, magnitudes = librosa.piptrack(y=segment, sr=sr)
                 voiced_frames = np.sum(np.max(magnitudes, axis=0) > 0) / magnitudes.shape[1]
 
                 # Качество сегмента
@@ -1011,7 +1021,7 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
 
             # Если не хватает сегментов, добавляем с перекрытием
             if len(selected_segments) < segment_count and len(potential_segments) > len(selected_segments):
-                remaining = segment_count - len(selected_segments)
+                segment_count - len(selected_segments)
 
                 for start, end, score in potential_segments:
                     if (start, end, score) not in selected_segments:
@@ -1043,9 +1053,9 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
             log.warning(f"Ошибка при подготовке сегментов из {wav_path}: {e}")
             # В случае ошибки возвращаем весь файл как один сегмент
             y, sr = librosa.load(wav_path, sr=None)
-            return [y], f"Ошибка при подготовке сегментов: {str(e)}"
+            return [y], f"Ошибка при подготовке сегментов: {e!s}"
 
-    def plot_spectral_features(wav_path: str) -> Tuple[str, str]:
+    def plot_spectral_features(wav_path: str) -> tuple[str, str]:
         """
         Создает расширенную визуализацию спектральных характеристик голоса.
 
@@ -1071,16 +1081,16 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
 
             # 1. Спектрограмма
             plt.subplot(3, 2, 1)
-            D = librosa.amplitude_to_db(np.abs(librosa.stft(y_processed)), ref=np.max)
-            librosa.display.specshow(D, sr=sr, hop_length=512, x_axis='time', y_axis='log')
+            db_spec = librosa.amplitude_to_db(np.abs(librosa.stft(y_processed)), ref=np.max)
+            librosa.display.specshow(db_spec, sr=sr, hop_length=512, x_axis='time', y_axis='log')
             plt.colorbar(format='%+2.0f dB')
             plt.title('Спектрограмма')
 
             # 2. Мел-спектрограмма (подчеркивает речевые особенности)
             plt.subplot(3, 2, 2)
-            S = librosa.feature.melspectrogram(y=y_processed, sr=sr, n_mels=128)
-            S_dB = librosa.power_to_db(S, ref=np.max)
-            librosa.display.specshow(S_dB, sr=sr, hop_length=512, x_axis='time', y_axis='mel')
+            mel_spec = librosa.feature.melspectrogram(y=y_processed, sr=sr, n_mels=128)
+            mel_db = librosa.power_to_db(mel_spec, ref=np.max)
+            librosa.display.specshow(mel_db, sr=sr, hop_length=512, x_axis='time', y_axis='mel')
             plt.colorbar(format='%+2.0f dB')
             plt.title('Мел-спектрограмма')
 
@@ -1104,7 +1114,7 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
                     pitch_frames.append((t, pitch))
 
             if pitch_frames:
-                frames, pitches_val = zip(*pitch_frames)
+                frames, pitches_val = zip(*pitch_frames, strict=False)
                 plt.scatter(
                     librosa.frames_to_time(frames, sr=sr),
                     pitches_val,
@@ -1155,4 +1165,4 @@ def detect_voice_modifications(wav_path: str) -> Tuple[bool, Dict[str, Any], str
 
         except Exception as e:
             log.warning(f"Ошибка при создании визуализации для {wav_path}: {e}")
-            return "", f"Не удалось создать визуализацию: {str(e)}"
+            return "", f"Не удалось создать визуализацию: {e!s}"

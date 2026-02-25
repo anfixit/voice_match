@@ -1,11 +1,11 @@
-import numpy as np
+
 import librosa
+import numpy as np
 import scipy.signal
 import scipy.stats
-from typing import Dict, Tuple, Optional, List
 
 
-def detect_pitch_shift(y: np.ndarray, sr: int) -> Tuple[bool, float]:
+def detect_pitch_shift(y: np.ndarray, sr: int) -> tuple[bool, float]:
     """
     Обнаруживает признаки искусственного изменения основного тона.
 
@@ -47,7 +47,7 @@ def detect_pitch_shift(y: np.ndarray, sr: int) -> Tuple[bool, float]:
     pitch_values = np.array(pitch_values)
 
     # 1. Проверка на неестественно стабильный питч (равномерное распределение)
-    hist, bin_edges = np.histogram(pitch_values, bins=100)
+    hist, _bin_edges = np.histogram(pitch_values, bins=100)
 
     # Энтропия гистограммы (оценка равномерности распределения)
     hist_prob = hist / np.sum(hist)
@@ -73,7 +73,7 @@ def detect_pitch_shift(y: np.ndarray, sr: int) -> Tuple[bool, float]:
     return False, 0.0
 
 
-def detect_formant_shift(formants: Dict[str, np.ndarray]) -> Tuple[bool, float]:
+def detect_formant_shift(formants: dict[str, np.ndarray]) -> tuple[bool, float]:
     """
     Обнаруживает признаки искусственного изменения формант.
 
@@ -169,12 +169,12 @@ def detect_robot_voice(y: np.ndarray, sr: int) -> bool:
         return True
 
     # 3. Проверка на равные интервалы между гармониками (признак синтеза)
-    S = np.abs(librosa.stft(y, n_fft=frame_length, hop_length=hop_length))
+    spectrogram = np.abs(librosa.stft(y, n_fft=frame_length, hop_length=hop_length))
 
     # Автокорреляция спектра для поиска регулярных паттернов
     autocorr = []
-    for frame in range(S.shape[1]):
-        frame_auto = np.correlate(S[:, frame], S[:, frame], mode='full')
+    for frame in range(spectrogram.shape[1]):
+        frame_auto = np.correlate(spectrogram[:, frame], spectrogram[:, frame], mode='full')
         frame_auto = frame_auto[frame_length - 1:]
         frame_auto = frame_auto / np.max(frame_auto) if np.max(frame_auto) > 0 else frame_auto
         autocorr.append(frame_auto)
@@ -200,8 +200,8 @@ def detect_robot_voice(y: np.ndarray, sr: int) -> bool:
     return False
 
 
-def detect_voice_modification(y: np.ndarray, sr: int, formants: Optional[Dict[str, np.ndarray]] = None) -> Tuple[
-    bool, Optional[str], float]:
+def detect_voice_modification(y: np.ndarray, sr: int, formants: dict[str, np.ndarray] | None = None) -> tuple[
+    bool, str | None, float]:
     """
     Комплексное обнаружение голосовых модификаторов.
 

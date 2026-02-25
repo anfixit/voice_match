@@ -1,7 +1,9 @@
-from speechbrain.pretrained import EncoderClassifier
-import torch
+
 import numpy as np
-from typing import Dict, List, Union
+import torch
+
+from speechbrain.pretrained import EncoderClassifier
+
 from voice_match.log import setup_logger
 
 log = setup_logger("ecapa_model")
@@ -33,7 +35,7 @@ class EnhancedEcapa:
             log.info("Модель ECAPA-TDNN успешно загружена")
         except Exception as e:
             log.error(f"Ошибка при загрузке модели ECAPA-TDNN: {e}")
-            raise RuntimeError(f"Не удалось загрузить модель ECAPA-TDNN: {e}")
+            raise RuntimeError(f"Не удалось загрузить модель ECAPA-TDNN: {e}") from e
 
     def encode_batch(self, waveforms: torch.Tensor) -> torch.Tensor:
         """
@@ -61,7 +63,7 @@ class EnhancedEcapa:
 
             return embeddings
 
-    def encode_segments(self, segments: List[np.ndarray]) -> torch.Tensor:
+    def encode_segments(self, segments: list[np.ndarray]) -> torch.Tensor:
         """
         Извлекает эмбеддинги из нескольких сегментов аудио.
 
@@ -86,7 +88,7 @@ class EnhancedEcapa:
         # Объединение результатов
         return torch.stack(embeddings)
 
-    def compare_embeddings(self, emb1: torch.Tensor, emb2: torch.Tensor) -> Dict[str, float]:
+    def compare_embeddings(self, emb1: torch.Tensor, emb2: torch.Tensor) -> dict[str, float]:
         """
         Сравнивает два эмбеддинга и возвращает детальные метрики сходства.
 
@@ -123,8 +125,8 @@ class EnhancedEcapa:
             "decision_reliable": confidence >= self.confidence_threshold
         }
 
-    def compare_embeddings_multiple(self, embs1: torch.Tensor, embs2: torch.Tensor) -> Dict[
-        str, Union[float, List[float]]]:
+    def compare_embeddings_multiple(self, embs1: torch.Tensor, embs2: torch.Tensor) -> dict[
+        str, float | list[float]]:
         """
         Сравнивает два набора эмбеддингов (от нескольких сегментов).
 
@@ -196,7 +198,7 @@ class EnhancedEcapa:
             "decision_reliable": decision_reliable
         }
 
-    def get_embedding_layer_outputs(self, waveform: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def get_embedding_layer_outputs(self, waveform: torch.Tensor) -> dict[str, torch.Tensor]:
         """
         Извлекает промежуточные признаки из разных слоев ECAPA-TDNN.
         Полезно для более глубокого анализа и интерпретации.

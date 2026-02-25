@@ -1,7 +1,8 @@
-from resemblyzer import VoiceEncoder
-import torch
+
 import numpy as np
-from typing import Dict, List, Union
+
+from resemblyzer import VoiceEncoder
+
 from voice_match.log import setup_logger
 
 log = setup_logger("resemblyzer_model")
@@ -23,10 +24,9 @@ class EnhancedResemblyzer:
             log.info("Модель Resemblyzer успешно загружена")
         except Exception as e:
             log.error(f"Ошибка при загрузке модели Resemblyzer: {e}")
-            raise RuntimeError(f"Не удалось загрузить модель Resemblyzer: {e}")
+            raise RuntimeError(f"Не удалось загрузить модель Resemblyzer: {e}") from e
 
-    def embed_utterance(self, wav: np.ndarray, return_partials: bool = False) -> Union[
-        np.ndarray, Dict[str, np.ndarray]]:
+    def embed_utterance(self, wav: np.ndarray, return_partials: bool = False) -> np.ndarray | dict[str, np.ndarray]:
         """
         Извлекает d-вектор из аудиосигнала.
 
@@ -66,7 +66,7 @@ class EnhancedResemblyzer:
                 "wave_slices": []
             }
 
-    def embed_segments(self, segments: List[np.ndarray]) -> np.ndarray:
+    def embed_segments(self, segments: list[np.ndarray]) -> np.ndarray:
         """
         Извлекает d-векторы из нескольких сегментов аудио.
 
@@ -89,7 +89,7 @@ class EnhancedResemblyzer:
         # Объединение результатов
         return np.vstack(embeddings)
 
-    def compare_embeddings(self, emb1: np.ndarray, emb2: np.ndarray) -> Dict[str, float]:
+    def compare_embeddings(self, emb1: np.ndarray, emb2: np.ndarray) -> dict[str, float]:
         """
         Сравнивает два d-вектора и возвращает метрики сходства.
 
@@ -122,8 +122,8 @@ class EnhancedResemblyzer:
             "is_same_speaker": bool(is_same_speaker)
         }
 
-    def compare_segments(self, segments1: List[np.ndarray], segments2: List[np.ndarray]) -> Dict[
-        str, Union[float, List[float]]]:
+    def compare_segments(self, segments1: list[np.ndarray], segments2: list[np.ndarray]) -> dict[
+        str, float | list[float]]:
         """
         Сравнивает наборы сегментов от двух дикторов.
 
@@ -185,7 +185,7 @@ class EnhancedResemblyzer:
             "is_same_speaker": bool(is_same_speaker)
         }
 
-    def analyze_temporal_stability(self, wav: np.ndarray) -> Dict[str, Union[float, List[float]]]:
+    def analyze_temporal_stability(self, wav: np.ndarray) -> dict[str, float | list[float]]:
         """
         Анализирует временную стабильность голосовых характеристик.
 
@@ -216,7 +216,7 @@ class EnhancedResemblyzer:
             # Сравнение каждого частичного эмбеддинга с общим
             segment_similarities = []
 
-            for i, partial in enumerate(partial_embeds):
+            for _i, partial in enumerate(partial_embeds):
                 sim = np.dot(partial, embedding) / (np.linalg.norm(partial) * np.linalg.norm(embedding))
                 segment_similarities.append(float(sim))
 

@@ -3,17 +3,18 @@
 TODO: Реализовать байесовский подход к оценке сходства голосов.
 """
 
+
 import numpy as np
-from typing import Dict, List
+
 from voice_match.log import setup_logger
 
 log = setup_logger("bayesian_scoring")
 
 
 def compute_bayesian_score(
-    similarity_scores: Dict[str, float],
-    priors: Dict[str, float] = None
-) -> Dict[str, float]:
+    similarity_scores: dict[str, float],
+    priors: dict[str, float] | None = None
+) -> dict[str, float]:
     """
     Вычисляет байесовскую оценку вероятности совпадения голосов.
 

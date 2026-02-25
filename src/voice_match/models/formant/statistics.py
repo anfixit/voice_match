@@ -5,9 +5,10 @@
 предоставляет инструменты для оценки надежности полученных данных.
 """
 
+
 import numpy as np
 import scipy.stats
-from typing import Dict, List, Tuple, Union, Optional
+
 from voice_match.log import setup_logger
 
 log = setup_logger("formant_statistics")
@@ -26,7 +27,7 @@ class FormantStatistics:
         # Уровень доверия по умолчанию для доверительных интервалов
         self.confidence_level = 0.95
 
-    def compute_formant_statistics(self, formant_tracks: Dict[str, np.ndarray]) -> Dict[str, Dict[str, float]]:
+    def compute_formant_statistics(self, formant_tracks: dict[str, np.ndarray]) -> dict[str, dict[str, float]]:
         """
         Вычисляет статистические характеристики формант с учетом надежности измерений.
 
@@ -198,7 +199,7 @@ class FormantStatistics:
 
         return statistics
 
-    def _empty_statistics(self) -> Dict[str, float]:
+    def _empty_statistics(self) -> dict[str, float]:
         """
         Возвращает структуру с пустыми статистиками.
 
@@ -225,8 +226,8 @@ class FormantStatistics:
             "effective_sample_size": 0
         }
 
-    def _compute_formant_ratio_statistics(self, formant_tracks: Dict[str, np.ndarray],
-                                          statistics: Dict[str, Dict[str, float]]) -> None:
+    def _compute_formant_ratio_statistics(self, formant_tracks: dict[str, np.ndarray],
+                                          statistics: dict[str, dict[str, float]]) -> None:
         """
         Вычисляет статистику соотношений формант и добавляет её в словарь статистик.
 
@@ -383,7 +384,7 @@ class FormantStatistics:
                     "effective_sample_size": n
                 }
 
-    def analyze_formant_stability(self, formant_tracks: Dict[str, np.ndarray]) -> Dict[str, float]:
+    def analyze_formant_stability(self, formant_tracks: dict[str, np.ndarray]) -> dict[str, float]:
         """
         Анализирует стабильность формант во времени, что важно для обнаружения
         синтетического голоса или подделок.
@@ -455,8 +456,8 @@ class FormantStatistics:
 
         return stability_metrics
 
-    def compare_formant_profiles(self, profile1: Dict[str, Dict[str, float]],
-                                 profile2: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+    def compare_formant_profiles(self, profile1: dict[str, dict[str, float]],
+                                 profile2: dict[str, dict[str, float]]) -> dict[str, float]:
         """
         Сравнивает статистические профили формант двух голосов.
 
@@ -562,7 +563,7 @@ class FormantStatistics:
 
         return comparison_results
 
-    def detect_formant_outliers(self, formant_tracks: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    def detect_formant_outliers(self, formant_tracks: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         """
         Обнаруживает выбросы в формантных треках и возвращает маски выбросов.
 

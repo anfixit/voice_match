@@ -3,14 +3,15 @@ PLDA (Probabilistic Linear Discriminant Analysis) скоринг.
 TODO: Реализовать PLDA для улучшенного сравнения эмбеддингов.
 """
 
+
 import numpy as np
-from typing import Dict
+
 from voice_match.log import setup_logger
 
 log = setup_logger("plda_scoring")
 
 
-def compute_plda_score(embedding1: np.ndarray, embedding2: np.ndarray) -> Dict[str, float]:
+def compute_plda_score(embedding1: np.ndarray, embedding2: np.ndarray) -> dict[str, float]:
     """
     Вычисляет PLDA оценку сходства двух эмбеддингов.
 

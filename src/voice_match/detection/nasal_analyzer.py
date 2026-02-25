@@ -3,14 +3,15 @@
 TODO: Реализовать детальный анализ носовых характеристик речи.
 """
 
+
 import numpy as np
-from typing import Dict
+
 from voice_match.log import setup_logger
 
 log = setup_logger("nasal_analyzer")
 
 
-def analyze_nasalization(audio: np.ndarray, sr: int = 16000) -> Dict[str, float]:
+def analyze_nasalization(audio: np.ndarray, sr: int = 16000) -> dict[str, float]:
     """
     Анализирует носовые характеристики речи.
 

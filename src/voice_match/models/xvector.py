@@ -1,7 +1,10 @@
-from pyannote.audio import Model
-import torch
+from collections.abc import Callable
+
 import numpy as np
-from typing import Dict, List, Union, Optional, Callable
+import torch
+
+from pyannote.audio import Model
+
 from voice_match.log import setup_logger
 
 log = setup_logger("xvector_model")
@@ -33,7 +36,7 @@ class EnhancedXVector:
             log.info("Модель X-vector успешно загружена")
         except Exception as e:
             log.error(f"Ошибка при загрузке модели X-vector: {e}")
-            raise RuntimeError(f"Не удалось загрузить модель X-vector: {e}")
+            raise RuntimeError(f"Не удалось загрузить модель X-vector: {e}") from e
 
     def __call__(self, waveform: torch.Tensor) -> torch.Tensor:
         """
@@ -67,7 +70,7 @@ class EnhancedXVector:
 
             return embedding
 
-    def extract_batch(self, segments: List[np.ndarray]) -> np.ndarray:
+    def extract_batch(self, segments: list[np.ndarray]) -> np.ndarray:
         """
         Извлекает эмбеддинги из нескольких сегментов аудио.
 
@@ -91,7 +94,7 @@ class EnhancedXVector:
         # Объединение результатов и сжатие размерности batch
         return np.vstack([emb.squeeze(0) for emb in embeddings])
 
-    def compare_embeddings(self, emb1: np.ndarray, emb2: np.ndarray) -> Dict[str, float]:
+    def compare_embeddings(self, emb1: np.ndarray, emb2: np.ndarray) -> dict[str, float]:
         """
         Сравнивает два эмбеддинга и возвращает метрики сходства.
 
@@ -128,8 +131,8 @@ class EnhancedXVector:
             "is_same_speaker": bool(probability >= 0.5)
         }
 
-    def compare_segments(self, segments1: List[np.ndarray], segments2: List[np.ndarray]) -> Dict[
-        str, Union[float, List[float]]]:
+    def compare_segments(self, segments1: list[np.ndarray], segments2: list[np.ndarray]) -> dict[
+        str, float | list[float]]:
         """
         Сравнивает наборы сегментов от двух дикторов.
 

@@ -1,15 +1,15 @@
-import gradio as gr
-import traceback
+import logging
 import os
 import tempfile
-import logging
+import traceback
+
+import gradio as gr
 import librosa
-import numpy as np
 import matplotlib.pyplot as plt
-from voice_match.log import setup_logger
+import numpy as np
 
 from voice_match.constants import MAX_FILE_SIZE_MB
-
+from voice_match.log import setup_logger
 from voice_match.services.comparison import compare_voices_dual
 from voice_match.services.preprocessing import convert_audio_to_wav
 
@@ -26,14 +26,14 @@ def visualize_audio(wav_path_1, wav_path_2):
         y1, sr1 = librosa.load(wav_path_1, sr=None)
         y2, sr2 = librosa.load(wav_path_2, sr=None)
 
-        fig, ax = plt.subplots(4, 2, figsize=(14, 16))
+        _fig, ax = plt.subplots(4, 2, figsize=(14, 16))
 
         # Спектрограммы
-        D1 = librosa.amplitude_to_db(np.abs(librosa.stft(y1)), ref=np.max)
-        D2 = librosa.amplitude_to_db(np.abs(librosa.stft(y2)), ref=np.max)
-        librosa.display.specshow(D1, sr=sr1, hop_length=512, x_axis='time', y_axis='log', ax=ax[0, 0])
+        db1 = librosa.amplitude_to_db(np.abs(librosa.stft(y1)), ref=np.max)
+        db2 = librosa.amplitude_to_db(np.abs(librosa.stft(y2)), ref=np.max)
+        librosa.display.specshow(db1, sr=sr1, hop_length=512, x_axis='time', y_axis='log', ax=ax[0, 0])
         ax[0, 0].set_title('Спектрограмма №1')
-        librosa.display.specshow(D2, sr=sr2, hop_length=512, x_axis='time', y_axis='log', ax=ax[0, 1])
+        librosa.display.specshow(db2, sr=sr2, hop_length=512, x_axis='time', y_axis='log', ax=ax[0, 1])
         ax[0, 1].set_title('Спектрограмма №2')
 
         # Энергия
@@ -87,7 +87,7 @@ def process_files(file1_path, file2_path):
             wav1_path, log1 = convert_audio_to_wav(file1_path)
             wav2_path, log2 = convert_audio_to_wav(file2_path)
         except Exception as e:
-            return f"⚠️ Ошибка при конвертации: {str(e)}", "", None
+            return f"⚠️ Ошибка при конвертации: {e!s}", "", None
 
         for wav_path in [wav1_path, wav2_path]:
             if not os.path.exists(wav_path):

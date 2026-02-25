@@ -3,11 +3,12 @@
 Обертка над FormantAnalyzer для совместимости с интерфейсом приложения.
 """
 
+
 import numpy as np
-from typing import Dict, List, Optional, Union
+
+from voice_match.log import setup_logger
 from voice_match.models.formant.core import FormantAnalyzer
 from voice_match.models.formant.statistics import FormantStatistics
-from voice_match.log import setup_logger
 
 log = setup_logger("formant_tracker")
 
@@ -32,9 +33,9 @@ class FormantTracker:
     def track_formants(
         self,
         audio: np.ndarray,
-        frame_length: Optional[int] = None,
-        hop_length: Optional[int] = None
-    ) -> Dict[str, np.ndarray]:
+        frame_length: int | None = None,
+        hop_length: int | None = None
+    ) -> dict[str, np.ndarray]:
         """
         Отслеживает форманты во времени для аудиосигнала.
 
@@ -109,8 +110,8 @@ class FormantTracker:
 
     def compute_formant_statistics(
         self,
-        formant_tracks: Dict[str, np.ndarray]
-    ) -> Dict[str, Dict[str, float]]:
+        formant_tracks: dict[str, np.ndarray]
+    ) -> dict[str, dict[str, float]]:
         """
         Вычисляет статистику для треков формант.
 
@@ -154,8 +155,8 @@ class FormantTracker:
 
     def estimate_vocal_tract_length(
         self,
-        formant_tracks: Dict[str, np.ndarray]
-    ) -> Dict[str, float]:
+        formant_tracks: dict[str, np.ndarray]
+    ) -> dict[str, float]:
         """
         Оценивает длину голосового тракта на основе формант.
 
@@ -220,9 +221,9 @@ class FormantTracker:
 
     def compare_formant_profiles(
         self,
-        stats1: Dict[str, Dict[str, float]],
-        stats2: Dict[str, Dict[str, float]]
-    ) -> Dict[str, float]:
+        stats1: dict[str, dict[str, float]],
+        stats2: dict[str, dict[str, float]]
+    ) -> dict[str, float]:
         """
         Сравнивает два формантных профиля.
 

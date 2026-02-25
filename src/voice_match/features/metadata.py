@@ -1,15 +1,16 @@
-import os
 import datetime
 import json
+import os
 import subprocess
-from typing import Dict, Any, Optional, Tuple
-import logging
+
+from typing import Any
+
 from voice_match.log import setup_logger
 
 log = setup_logger("metadata")
 
 
-def extract_file_metadata(file_path: str) -> Dict[str, Any]:
+def extract_file_metadata(file_path: str) -> dict[str, Any]:
     """
     Извлекает метаданные из аудиофайла для аналитических целей.
 
@@ -105,7 +106,7 @@ def extract_file_metadata(file_path: str) -> Dict[str, Any]:
     return metadata
 
 
-def check_file_integrity(file_path: str) -> Dict[str, Any]:
+def check_file_integrity(file_path: str) -> dict[str, Any]:
     """
     Проверяет целостность аудиофайла на наличие повреждений.
 
@@ -138,12 +139,12 @@ def check_file_integrity(file_path: str) -> Dict[str, Any]:
             result["errors"].append(proc.stderr.strip())
     except Exception as e:
         result["valid"] = False
-        result["errors"].append(f"Ошибка проверки: {str(e)}")
+        result["errors"].append(f"Ошибка проверки: {e!s}")
 
     return result
 
 
-def detect_recording_environment(audio_data: Dict[str, Any]) -> Dict[str, Any]:
+def detect_recording_environment(audio_data: dict[str, Any]) -> dict[str, Any]:
     """
     Анализирует параметры записи для определения условий записи.
 
@@ -187,7 +188,7 @@ def detect_recording_environment(audio_data: Dict[str, Any]) -> Dict[str, Any]:
     return environment
 
 
-def compare_file_metadata(metadata1: Dict[str, Any], metadata2: Dict[str, Any]) -> Dict[str, Any]:
+def compare_file_metadata(metadata1: dict[str, Any], metadata2: dict[str, Any]) -> dict[str, Any]:
     """
     Сравнивает метаданные двух файлов для выявления несоответствий.
 

@@ -1,11 +1,7 @@
-import numpy as np
+
+
 import librosa
-import scipy.signal
-import scipy.stats
-from typing import Dict, List, Tuple, Optional, Union
-import os
-import tempfile
-from voice_match.log import setup_logger
+import numpy as np
 
 from voice_match.constants import (
     FRAME_DURATION_S,
@@ -15,7 +11,7 @@ from voice_match.constants import (
     PITCH_RANGE_MALE,
     SHIMMER_NORMAL_RANGE,
 )
-
+from voice_match.log import setup_logger
 
 log = setup_logger("voice_features")
 
@@ -49,7 +45,7 @@ class VoiceFeatureExtractor:
         # Нормальный диапазон шиммера (в %) для здорового голоса
         self.shimmer_normal_range = SHIMMER_NORMAL_RANGE
 
-    def extract_all_features(self, y: np.ndarray) -> Dict[str, Union[float, np.ndarray, Dict]]:
+    def extract_all_features(self, y: np.ndarray) -> dict[str, float | np.ndarray | dict]:
         """
         Извлекает полный набор голосовых характеристик для биометрической идентификации.
 
@@ -101,7 +97,7 @@ class VoiceFeatureExtractor:
 
         return features
 
-    def extract_pitch_features(self, y: np.ndarray) -> Dict[str, Union[float, np.ndarray]]:
+    def extract_pitch_features(self, y: np.ndarray) -> dict[str, float | np.ndarray]:
         """
         Извлекает характеристики основного тона (pitch, F0).
 
@@ -211,7 +207,7 @@ class VoiceFeatureExtractor:
 
         return pitch_stats
 
-    def _compute_pitch_reset(self, pitches: np.ndarray) -> Dict[str, float]:
+    def _compute_pitch_reset(self, pitches: np.ndarray) -> dict[str, float]:
         """
         Вычисляет характеристики сброса основного тона.
         Сброс тона - индивидуальная характеристика говорящего.
@@ -252,7 +248,7 @@ class VoiceFeatureExtractor:
             "frequency": len(reset_points) / len(pitches)
         }
 
-    def extract_jitter_shimmer(self, y: np.ndarray) -> Dict[str, float]:
+    def extract_jitter_shimmer(self, y: np.ndarray) -> dict[str, float]:
         """
         Извлекает параметры микроколебаний голоса: джиттер и шиммер.
         Эти параметры являются важными биометрическими характеристиками.
@@ -360,7 +356,7 @@ class VoiceFeatureExtractor:
             "shimmer_variability": shimmer_variability
         }
 
-    def extract_fricative_features(self, y: np.ndarray) -> Dict[str, float]:
+    def extract_fricative_features(self, y: np.ndarray) -> dict[str, float]:
         """
         Извлекает характеристики фрикативных согласных.
         Спектральные особенности фрикативных звуков (ш, с, ф, в и т.д.)
@@ -456,7 +452,7 @@ class VoiceFeatureExtractor:
             "overall_fricative_ratio": np.sum(all_fricative_frames) / len(all_fricative_frames)
         }
 
-    def extract_nasal_features(self, y: np.ndarray) -> Dict[str, float]:
+    def extract_nasal_features(self, y: np.ndarray) -> dict[str, float]:
         """
         Извлекает характеристики носовых звуков (м, н).
         Носовой резонанс - важная индивидуальная характеристика голоса.
@@ -540,7 +536,7 @@ class VoiceFeatureExtractor:
             "nasal_resonance_ratio": nasal_resonance_ratio
         }
 
-    def extract_perceptual_features(self, y: np.ndarray) -> Dict[str, float]:
+    def extract_perceptual_features(self, y: np.ndarray) -> dict[str, float]:
         """
         Извлекает перцептивные (воспринимаемые) характеристики голоса.
 
@@ -619,8 +615,8 @@ class VoiceFeatureExtractor:
         return perceptual_features
 
     def assess_voice_quality(self, y: np.ndarray,
-                             pitch_features: Dict[str, Union[float, np.ndarray]],
-                             jitter_shimmer: Dict[str, float]) -> Dict[str, float]:
+                             pitch_features: dict[str, float | np.ndarray],
+                             jitter_shimmer: dict[str, float]) -> dict[str, float]:
         """
         Оценивает качество голоса и его специфические характеристики.
 
@@ -731,7 +727,7 @@ class VoiceFeatureExtractor:
             "stability": stability
         }
 
-    def extract_temporal_features(self, y: np.ndarray) -> Dict[str, float]:
+    def extract_temporal_features(self, y: np.ndarray) -> dict[str, float]:
         """
         Извлекает темпоральные характеристики речи.
 
@@ -808,11 +804,11 @@ class VoiceFeatureExtractor:
         }
 
     def create_biometric_vector(self,
-                                    pitch_features: Dict[str, Union[float, np.ndarray]],
-                                    jitter_shimmer: Dict[str, float],
-                                    fricative_features: Dict[str, Union[float, dict]],
-                                    nasal_features: Dict[str, float],
-                                    voice_quality: Dict[str, float]) -> np.ndarray:
+                                    pitch_features: dict[str, float | np.ndarray],
+                                    jitter_shimmer: dict[str, float],
+                                    fricative_features: dict[str, float | dict],
+                                    nasal_features: dict[str, float],
+                                    voice_quality: dict[str, float]) -> np.ndarray:
         """
         Создает единый биометрический вектор признаков для идентификации говорящего.
 
@@ -879,7 +875,7 @@ class VoiceFeatureExtractor:
 
         return np.array(biometric_vector)
 
-    def compare_voice_features(self, features1: Dict[str, any], features2: Dict[str, any]) -> Dict[str, float]:
+    def compare_voice_features(self, features1: dict[str, any], features2: dict[str, any]) -> dict[str, float]:
         """
         Сравнивает характеристики двух голосов и возвращает меры сходства.
 
@@ -966,7 +962,7 @@ class VoiceFeatureExtractor:
 
         return similarities
 
-    def _compare_pitch_features(self, pitch1: Dict[str, any], pitch2: Dict[str, any]) -> float:
+    def _compare_pitch_features(self, pitch1: dict[str, any], pitch2: dict[str, any]) -> float:
         """
         Сравнивает характеристики основного тона двух голосов.
 
@@ -1026,7 +1022,7 @@ class VoiceFeatureExtractor:
         # Общее сходство питча (взвешенное)
         return 0.5 * mean_sim + 0.3 * variability_sim + 0.2 * contour_sim
 
-    def _compare_jitter_shimmer(self, js1: Dict[str, float], js2: Dict[str, float]) -> float:
+    def _compare_jitter_shimmer(self, js1: dict[str, float], js2: dict[str, float]) -> float:
         """
         Сравнивает джиттер и шиммер двух голосов.
 
@@ -1077,7 +1073,7 @@ class VoiceFeatureExtractor:
         # Взвешенное среднее
         return 0.3 * jitter_sim + 0.3 * shimmer_sim + 0.2 * ppq5_sim + 0.2 * apq5_sim
 
-    def _compare_fricative_features(self, fric1: Dict[str, any], fric2: Dict[str, any]) -> float:
+    def _compare_fricative_features(self, fric1: dict[str, any], fric2: dict[str, any]) -> float:
         """
         Сравнивает характеристики фрикативных звуков двух голосов.
 
@@ -1120,7 +1116,7 @@ class VoiceFeatureExtractor:
         # Взвешенное среднее
         return 0.35 * s_z_sim + 0.35 * sh_zh_sim + 0.3 * centroid_sim
 
-    def _compare_nasal_features(self, nasal1: Dict[str, float], nasal2: Dict[str, float]) -> float:
+    def _compare_nasal_features(self, nasal1: dict[str, float], nasal2: dict[str, float]) -> float:
         """
         Сравнивает характеристики носовых звуков двух голосов.
 
@@ -1158,7 +1154,7 @@ class VoiceFeatureExtractor:
         # Взвешенное среднее
         return 0.3 * res1_sim + 0.5 * ratio_sim + 0.2 * nasal_sim
 
-    def _compare_voice_quality(self, vq1: Dict[str, float], vq2: Dict[str, float]) -> float:
+    def _compare_voice_quality(self, vq1: dict[str, float], vq2: dict[str, float]) -> float:
         """
         Сравнивает качества голоса двух говорящих.
 

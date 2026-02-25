@@ -5,8 +5,9 @@
 анатомическими особенностями голосового тракта человека.
 """
 
+
 import numpy as np
-from typing import Dict, List, Union, Optional
+
 from voice_match.log import setup_logger
 
 log = setup_logger("formant_constraints")
@@ -74,7 +75,7 @@ class FormantConstraintHandler:
             }
         }
 
-    def enforce_physiological_constraints(self, formant_tracks: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    def enforce_physiological_constraints(self, formant_tracks: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         """
         Применяет физиологические ограничения к формантным трекам.
         Проверяет, что F1 < F2 < F3 < F4 и все форманты находятся
@@ -92,7 +93,7 @@ class FormantConstraintHandler:
         num_frames = len(updated_tracks["F1"])
         gender = updated_tracks.get("gender", "male")
         ranges = self.formant_ranges.get(gender, self.formant_ranges["male"])
-        intervals = self.formant_intervals.get(gender, self.formant_intervals["male"])
+        self.formant_intervals.get(gender, self.formant_intervals["male"])
 
         for t in range(num_frames):
             # Применяем ограничения только к фреймам с речью
@@ -106,9 +107,9 @@ class FormantConstraintHandler:
                     next_formant = f"F{i + 1}"
 
                     # Если обе форманты определены
-                    if updated_tracks[current_formant][t] > 0 and updated_tracks[next_formant][t] > 0:
-                        # Проверка на следование правилу F1 < F2 < F3 < F4
-                        if updated_tracks[next_formant][t] <= updated_tracks[current_formant][t]:
+                    if (updated_tracks[current_formant][t] > 0
+                            and updated_tracks[next_formant][t] > 0
+                            and updated_tracks[next_formant][t] <= updated_tracks[current_formant][t]):
                             # Нарушен порядок формант - исправляем на основе надежности
                             current_reliability = updated_tracks[f"{current_formant}_reliability"][t]
                             next_reliability = updated_tracks[f"{next_formant}_reliability"][t]
@@ -173,7 +174,7 @@ class FormantConstraintHandler:
 
         return updated_tracks
 
-    def _check_formant_intervals(self, formant_tracks: Dict[str, np.ndarray]) -> None:
+    def _check_formant_intervals(self, formant_tracks: dict[str, np.ndarray]) -> None:
         """
         Проверяет интервалы между формантами на соответствие физиологическим нормам.
 
@@ -210,7 +211,7 @@ class FormantConstraintHandler:
                         for formant_name in ["F1", "F2", "F3", "F4"]:
                             formant_tracks[f"{formant_name}_reliability"][t] *= 0.8
 
-    def check_formant_consistency(self, formant_values: Dict[str, float]) -> Dict[str, Union[bool, float, str]]:
+    def check_formant_consistency(self, formant_values: dict[str, float]) -> dict[str, bool | float | str]:
         """
         Проверяет согласованность набора формант и пытается определить фонему.
 
@@ -276,7 +277,7 @@ class FormantConstraintHandler:
             "formant_ratio": f2_f1_ratio
         }
 
-    def detect_formant_manipulation(self, formant_tracks: Dict[str, np.ndarray]) -> Dict[str, Union[bool, float, str]]:
+    def detect_formant_manipulation(self, formant_tracks: dict[str, np.ndarray]) -> dict[str, bool | float | str]:
         """
         Обнаруживает признаки искусственной манипуляции формантами.
 

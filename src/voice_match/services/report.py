@@ -1,9 +1,8 @@
-import numpy as np
 import datetime
-from typing import Dict, List, Tuple, Optional, Any
-import matplotlib.pyplot as plt
-import io
-import base64
+
+from typing import Any
+
+import numpy as np
 
 
 class ForensicReport:
@@ -30,7 +29,7 @@ class ForensicReport:
         self.verdict = ""
         self.visualizations = {}
 
-    def add_results(self, method: str, values: List[float], weight: float = 1.0):
+    def add_results(self, method: str, values: list[float], weight: float = 1.0):
         """
         Добавляет результаты сравнения для определенного метода.
 
@@ -63,7 +62,7 @@ class ForensicReport:
         else:
             self.confidence_intervals[method] = (0, 1)
 
-    def set_modification_info(self, detected: bool, details: Dict[str, Any]):
+    def set_modification_info(self, detected: bool, details: dict[str, Any]):
         """
         Устанавливает информацию об обнаруженных модификациях голоса.
 
@@ -165,7 +164,7 @@ class ForensicReport:
                 """
 
         if self.modification_detected:
-            html += f"""
+            html += """
                         <div class="warning">
                             <h4>⚠️ Обнаружены признаки модификации голоса!</h4>
                             <ul>
@@ -174,7 +173,7 @@ class ForensicReport:
             for file_num, details in self.modification_details.items():
                 if details["detected"]:
                     html += f"""
-                                <li>Файл {file_num}: Обнаружена модификация типа "{details["type"]}" 
+                                <li>Файл {file_num}: Обнаружена модификация типа "{details["type"]}"
                                 с вероятностью {details["confidence"]:.1%}</li>
                             """
 
@@ -228,7 +227,7 @@ class ForensicReport:
                         </table>
 
                         <div class="info" style="margin-top: 20px;">
-                            <p>Доверительный интервал (CI) показывает диапазон, в котором с вероятностью 95% 
+                            <p>Доверительный интервал (CI) показывает диапазон, в котором с вероятностью 95%
                             находится истинное значение сходства для данного метода.</p>
                         </div>
                     </div>
@@ -238,9 +237,7 @@ class ForensicReport:
         verdict_class = ""
         if self.final_score >= 0.95:
             verdict_class = "success"
-        elif self.final_score >= 0.88:
-            verdict_class = "info"
-        elif self.final_score >= 0.80:
+        elif self.final_score >= 0.88 or self.final_score >= 0.80:
             verdict_class = "info"
         elif self.final_score >= 0.70:
             verdict_class = "warning"
@@ -253,7 +250,7 @@ class ForensicReport:
                         <div class="{verdict_class}">
                             <p><strong>Взвешенная оценка сходства: {self.final_score:.3f}</strong></p>
                             <p><strong>Доверительный интервал: {self.final_score:.2f} ± {self.consistency:.2f}</strong></p>
-                            <p><strong>Консистентность методов: {self.consistency:.3f}</strong> 
+                            <p><strong>Консистентность методов: {self.consistency:.3f}</strong>
                             {"- Высокая согласованность" if self.consistency < 0.1 else "- Средняя согласованность" if self.consistency < 0.15 else "- Низкая согласованность"}</p>
                         </div>
                     </div>

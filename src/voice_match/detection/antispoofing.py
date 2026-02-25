@@ -1,11 +1,11 @@
+import os
+
+import librosa
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import librosa
-import os
-import tempfile
-from typing import Dict, Tuple, List, Optional, Union
+import torch.nn.functional as func
+
 from voice_match.log import setup_logger
 
 log = setup_logger("antispoofing")
@@ -15,7 +15,7 @@ class SincConv(nn.Module):
     """Sinc-based convolution for antispoofing detection"""
 
     def __init__(self, device='cpu'):
-        super(SincConv, self).__init__()
+        super().__init__()
         self.device = device
         # Фильтр 1D свертки
         self.conv = nn.Conv1d(
@@ -75,7 +75,7 @@ class SincConv(nn.Module):
             x = x.unsqueeze(1)  # [batch, 1, time]
 
         # 1D свертка с sinc фильтрами
-        x = F.relu(self.conv(x))  # [batch, 64, time/256]
+        x = func.relu(self.conv(x))  # [batch, 64, time/256]
 
         # Подготовка для GRU
         x = x.transpose(1, 2)  # [batch, time/256, 64]
@@ -87,7 +87,7 @@ class SincConv(nn.Module):
         x = torch.mean(x, dim=1)  # [batch, 128]
 
         # Полносвязный слой
-        x = F.relu(self.fc(x))
+        x = func.relu(self.fc(x))
         x = self.fc_out(x)
 
         return x
@@ -131,7 +131,7 @@ class AntiSpoofingDetector:
         # или использовать предустановленные значения для ключевых слоев
         pass
 
-    def detect(self, y: np.ndarray, sr: int) -> Dict[str, float]:
+    def detect(self, y: np.ndarray, sr: int) -> dict[str, float]:
         """
         Обнаруживает признаки синтетической или поддельной речи.
 
@@ -192,7 +192,7 @@ class AntiSpoofingDetector:
                 output = self.model(x)
 
                 # Применяем softmax для получения вероятностей
-                probs = F.softmax(output, dim=1)
+                probs = func.softmax(output, dim=1)
 
                 # Вероятность синтетической речи (1 класс)
                 synthetic_prob = probs[0, 1].item()

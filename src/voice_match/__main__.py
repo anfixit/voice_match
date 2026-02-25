@@ -1,8 +1,8 @@
 """Точка входа voice_match как модуля."""
 
+import importlib.util
 import os
 import sys
-import importlib.util
 
 from voice_match.log import setup_logger
 

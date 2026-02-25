@@ -4,11 +4,12 @@
 Содержит основные инструменты для спектрального анализа и извлечения формант из речевого сигнала.
 """
 
-import numpy as np
+
 import librosa
-import scipy.signal
+import numpy as np
 import scipy.linalg
-from typing import Dict, List, Tuple, Optional, Union
+import scipy.signal
+
 from voice_match.log import setup_logger
 
 log = setup_logger("formant_core")
@@ -178,7 +179,7 @@ class FormantAnalyzer:
 
         return error
 
-    def compute_lpc_with_multiple_windows(self, frame: np.ndarray, order: int) -> List[Tuple[np.ndarray, float]]:
+    def compute_lpc_with_multiple_windows(self, frame: np.ndarray, order: int) -> list[tuple[np.ndarray, float]]:
         """
         Вычисляет LPC-коэффициенты с разными оконными функциями
         для повышения робастности анализа. Возвращает коэффициенты и качество модели.
@@ -238,7 +239,7 @@ class FormantAnalyzer:
         return lpc_results
 
     def extract_formants_from_lpc(self, lpc_coeffs: np.ndarray, gender: str = 'male',
-                                  model_quality: float = 1.0) -> Dict[str, Union[float, Dict]]:
+                                  model_quality: float = 1.0) -> dict[str, float | dict]:
         """
         Извлекает частоты формант из LPC-коэффициентов с учетом пола говорящего.
         Улучшенная версия с оценкой надежности и дополнительными параметрами.
@@ -310,7 +311,7 @@ class FormantAnalyzer:
 
         # Создаем список кандидатов в форманты
         formant_candidates = []
-        for i, (freq, bw, reliability) in enumerate(zip(freqs, bandwidths, reliabilities)):
+        for i, (freq, bw, reliability) in enumerate(zip(freqs, bandwidths, reliabilities, strict=False)):
             # Проверяем, что полоса пропускания в разумных пределах (не слишком широкая)
             if bw < 500:  # ограничение на слишком широкие форманты
                 for formant_name, (min_freq, max_freq) in ranges.items():
@@ -378,7 +379,7 @@ class FormantAnalyzer:
         # Выделение речевого диапазона (200-5000 Hz)
         speech_mask = (freqs >= 200) & (freqs <= 5000)
         speech_spectrum = norm_spectrum[speech_mask]
-        speech_freqs = freqs[speech_mask]
+        freqs[speech_mask]
 
         if len(speech_spectrum) == 0:
             return 0.0
@@ -407,7 +408,7 @@ class FormantAnalyzer:
 
         return quality
 
-    def estimate_gender(self, y: np.ndarray) -> Dict[str, float]:
+    def estimate_gender(self, y: np.ndarray) -> dict[str, float]:
         """
         Оценивает вероятный пол говорящего на основе распределения основного тона
         и формантной структуры. Возвращает вероятности для каждой категории.

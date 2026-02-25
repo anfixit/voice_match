@@ -1,8 +1,9 @@
+
+import librosa
+import numpy as np
 import tensorflow as tf
 import tensorflow_hub as hub
-import numpy as np
-from typing import Dict, List, Tuple, Union
-import librosa
+
 from voice_match.log import setup_logger
 
 log = setup_logger("yamnet_model")
@@ -34,9 +35,9 @@ class EnhancedYAMNet:
             log.info("Модель YAMNet успешно загружена")
         except Exception as e:
             log.error(f"Ошибка при загрузке модели YAMNet: {e}")
-            raise RuntimeError(f"Не удалось загрузить модель YAMNet: {e}")
+            raise RuntimeError(f"Не удалось загрузить модель YAMNet: {e}") from e
 
-    def __call__(self, waveform: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+    def __call__(self, waveform: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
         """
         Прямой вызов модели YAMNet для получения предсказаний.
 
@@ -82,7 +83,7 @@ class EnhancedYAMNet:
 
         return embedding.numpy()
 
-    def extract_with_timestamps(self, wav: np.ndarray, sr: int = 16000) -> Dict[str, Union[np.ndarray, List[float]]]:
+    def extract_with_timestamps(self, wav: np.ndarray, sr: int = 16000) -> dict[str, np.ndarray | list[float]]:
         """
         Извлекает YAMNet эмбеддинги и классы с временными метками.
 
@@ -107,7 +108,7 @@ class EnhancedYAMNet:
         waveform = tf.convert_to_tensor(wav, dtype=tf.float32)
 
         # Получение предсказаний
-        scores, embeddings, log_mel_spectrogram = self.model(waveform)
+        scores, embeddings, _log_mel_spectrogram = self.model(waveform)
 
         # Преобразование в numpy для дальнейшей обработки
         scores_np = scores.numpy()
@@ -115,7 +116,6 @@ class EnhancedYAMNet:
 
         # Создание временных меток
         # YAMNet использует перекрывающиеся фреймы по 0.96 секунд с шагом 0.48 секунд
-        frame_duration = 0.96
         hop_duration = 0.48
         timestamps = [i * hop_duration for i in range(len(scores_np))]
 
@@ -137,7 +137,7 @@ class EnhancedYAMNet:
             "mean_embedding": np.mean(embeddings_np, axis=0)
         }
 
-    def compare_embeddings(self, emb1: np.ndarray, emb2: np.ndarray) -> Dict[str, float]:
+    def compare_embeddings(self, emb1: np.ndarray, emb2: np.ndarray) -> dict[str, float]:
         """
         Сравнивает два YAMNet эмбеддинга.
 
@@ -164,8 +164,8 @@ class EnhancedYAMNet:
             "correlation": float(correlation if not np.isnan(correlation) else 0.0)
         }
 
-    def compare_segments(self, segments1: List[np.ndarray], segments2: List[np.ndarray]) -> Dict[
-        str, Union[float, List[float]]]:
+    def compare_segments(self, segments1: list[np.ndarray], segments2: list[np.ndarray]) -> dict[
+        str, float | list[float]]:
         """
         Сравнивает наборы сегментов от двух записей.
 
@@ -221,7 +221,7 @@ class EnhancedYAMNet:
             "all_similarities": all_similarities
         }
 
-    def detect_voice_masking(self, wav: np.ndarray) -> Dict[str, float]:
+    def detect_voice_masking(self, wav: np.ndarray) -> dict[str, float]:
         """
         Обнаруживает признаки маскировки голоса или искусственной среды.
 
@@ -239,7 +239,7 @@ class EnhancedYAMNet:
 
         # Получение классов YAMNet
         result = self.extract_with_timestamps(wav)
-        scores = np.array([frame[0]["score"] for frame in result["top_classes"]])
+        np.array([frame[0]["score"] for frame in result["top_classes"]])
         top_classes = [frame[0]["class"] for frame in result["top_classes"]]
 
         # Поиск специфических звуков, указывающих на маскировку
