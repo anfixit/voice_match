@@ -4,6 +4,11 @@ import numpy as np
 import scipy.signal
 import scipy.stats
 
+from voice_match.constants import (
+    FRAME_LENGTH,
+    HOP_LENGTH,
+)
+
 
 def detect_pitch_shift(y: np.ndarray, sr: int) -> tuple[bool, float]:
     """
@@ -17,8 +22,8 @@ def detect_pitch_shift(y: np.ndarray, sr: int) -> tuple[bool, float]:
         (is_shifted, shift_amount): Флаг смещения и оценка величины в полутонах
     """
     # Параметры для анализа
-    frame_length = 2048
-    hop_length = 512
+    frame_length = FRAME_LENGTH
+    hop_length = HOP_LENGTH
 
     # Оценка основного тона
     pitches, magnitudes = librosa.core.piptrack(
@@ -124,8 +129,8 @@ def detect_robot_voice(y: np.ndarray, sr: int) -> bool:
         is_robot: Флаг обнаружения
     """
     # Параметры для анализа
-    frame_length = 2048
-    hop_length = 512
+    frame_length = FRAME_LENGTH
+    hop_length = HOP_LENGTH
 
     # Спектральные признаки
     flatness = librosa.feature.spectral_flatness(

@@ -6,12 +6,15 @@ TODO: Реализовать детекцию цифровых модифика�
 
 import numpy as np
 
+from voice_match.constants import (
+    SAMPLE_RATE,
+)
 from voice_match.log import setup_logger
 
 log = setup_logger("modification_detector")
 
 
-def detect_modifications(audio: np.ndarray, sr: int = 16000) -> dict[str, float]:
+def detect_modifications(audio: np.ndarray, sr: int = SAMPLE_RATE) -> dict[str, float]:
     """
     Обнаруживает признаки цифровых модификаций в аудио.
 

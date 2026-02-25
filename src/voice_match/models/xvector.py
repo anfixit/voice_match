@@ -5,6 +5,9 @@ import torch
 
 from pyannote.audio import Model
 
+from voice_match.constants import (
+    SAMPLE_RATE,
+)
 from voice_match.log import setup_logger
 
 log = setup_logger("xvector_model")
@@ -59,7 +62,7 @@ class EnhancedXVector:
             # Подготовка входных данных для модели
             inputs = {
                 "waveform": waveform,
-                "sample_rate": 16000
+                "sample_rate": SAMPLE_RATE
             }
 
             # Извлечение эмбеддинга

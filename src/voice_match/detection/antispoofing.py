@@ -6,6 +6,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as func
 
+from voice_match.constants import (
+    SAMPLE_RATE,
+)
 from voice_match.log import setup_logger
 
 log = setup_logger("antispoofing")
@@ -154,14 +157,14 @@ class AntiSpoofingDetector:
             }
 
         # Ресемплирование до 16kHz
-        if sr != 16000:
-            y = librosa.resample(y, orig_sr=sr, target_sr=16000)
+        if sr != SAMPLE_RATE:
+            y = librosa.resample(y, orig_sr=sr, target_sr=SAMPLE_RATE)
 
         # Нормализация
         y = librosa.util.normalize(y)
 
         # Разделение на сегменты по 4 секунды
-        segment_len = 4 * 16000
+        segment_len = 4 * SAMPLE_RATE
 
         # Если сигнал короче 4 секунд, дополняем нулями
         if len(y) < segment_len:

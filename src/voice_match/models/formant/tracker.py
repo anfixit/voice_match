@@ -6,6 +6,9 @@
 
 import numpy as np
 
+from voice_match.constants import (
+    SAMPLE_RATE,
+)
 from voice_match.log import setup_logger
 from voice_match.models.formant.core import FormantAnalyzer
 from voice_match.models.formant.statistics import FormantStatistics
@@ -19,7 +22,7 @@ class FormantTracker:
     Предоставляет унифицированный интерфейс для анализа формант.
     """
 
-    def __init__(self, sample_rate: int = 16000):
+    def __init__(self, sample_rate: int = SAMPLE_RATE):
         """
         Инициализирует трекер формант.
 
@@ -274,7 +277,7 @@ class FormantTracker:
         return detailed_comparison
 
 
-def get_formant_tracker(sample_rate: int = 16000) -> FormantTracker:
+def get_formant_tracker(sample_rate: int = SAMPLE_RATE) -> FormantTracker:
     """
     Возвращает экземпляр трекера формант.
 

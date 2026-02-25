@@ -15,6 +15,9 @@ import soundfile as sf
 from pydub import AudioSegment
 
 from voice_match.constants import (
+    FRAME_DURATION_S,
+    HOP_DURATION_S,
+    HOP_LENGTH,
     SEGMENT_DURATION,
     SUPPORTED_EXTENSIONS,
     TARGET_CHANNELS,
@@ -421,8 +424,8 @@ def remove_silence(wav_path: str, min_silence_duration: float = 0.3,
         y, sr = librosa.load(wav_path, sr=None)
 
         # Вычисление энергии
-        frame_length = int(0.025 * sr)  # 25 мс
-        hop_length = int(0.010 * sr)  # 10 мс
+        frame_length = int(FRAME_DURATION_S * sr)
+        hop_length = int(HOP_DURATION_S * sr)
 
         energy = librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length)[0]
         energy_threshold = silence_threshold * np.max(energy)
@@ -758,8 +761,8 @@ def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str
 
             # Применение VAD для обнаружения речи
             # Вычисление энергии
-            frame_length = int(0.025 * sr)  # 25 мс
-            hop_length = int(0.010 * sr)  # 10 мс
+            frame_length = int(FRAME_DURATION_S * sr)
+            hop_length = int(HOP_DURATION_S * sr)
 
             # Энергия
             energy = librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length)[0]
@@ -951,7 +954,7 @@ def detect_voice_modifications(wav_path: str) -> tuple[bool, dict[str, Any], str
             energy_threshold = 0.05 * np.max(energy)
 
             # Получение индексов фреймов с речью
-            hop_length = 512  # Стандартное значение для RMS
+            hop_length = HOP_LENGTH
             speech_frames = np.where(energy > energy_threshold)[0]
 
             if len(speech_frames) == 0:

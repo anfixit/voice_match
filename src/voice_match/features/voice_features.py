@@ -9,6 +9,7 @@ from voice_match.constants import (
     JITTER_NORMAL_RANGE,
     PITCH_RANGE_FEMALE,
     PITCH_RANGE_MALE,
+    SAMPLE_RATE,
     SHIMMER_NORMAL_RANGE,
 )
 from voice_match.log import setup_logger
@@ -21,7 +22,7 @@ class VoiceFeatureExtractor:
     Извлекает специализированные голосовые биометрические характеристики для судебной фоноскопии.
     """
 
-    def __init__(self, sample_rate: int = 16000):
+    def __init__(self, sample_rate: int = SAMPLE_RATE):
         """
         Инициализирует экстрактор биометрических признаков голоса.
 

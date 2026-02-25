@@ -19,6 +19,10 @@ from voice_match.constants import (
     CONFIDENCE_LEVEL,
     DEFAULT_WEIGHTS,
     FORMANT_LIMITS,
+    FRAME_DURATION_S,
+    FRAME_LENGTH,
+    HOP_DURATION_S,
+    HOP_LENGTH,
     PITCH_JUMP_THRESHOLD_SEMITONES,
     SAMPLE_RATE,
     SEGMENT_COUNT,
@@ -255,8 +259,8 @@ def detect_voice_modification(y: np.ndarray, sr: int) -> tuple[bool, str | None]
     # Извлекаем основные признаки
     pitched_segments = 0
     total_segments = 0
-    frame_length = 2048
-    hop_length = 512
+    frame_length = FRAME_LENGTH
+    hop_length = HOP_LENGTH
 
     # Анализ основного тона
     pitches, magnitudes = librosa.core.piptrack(
@@ -349,8 +353,8 @@ def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> dict[s
     """
     try:
         # Параметры оконного анализа
-        frame_length = int(0.025 * sr)  # 25 мс окно
-        hop_length = int(0.010 * sr)  # 10 мс шаг
+        frame_length = int(FRAME_DURATION_S * sr)  # 25 мс окно
+        hop_length = int(HOP_DURATION_S * sr)  # 10 мс шаг
 
         # Подготовка результатов
         formants_result = {
@@ -526,8 +530,8 @@ def extract_fricative_features(y: np.ndarray, sr: int) -> np.ndarray:
     """
     try:
         # Параметры для анализа
-        frame_length = int(0.025 * sr)
-        hop_length = int(0.010 * sr)
+        frame_length = int(FRAME_DURATION_S * sr)
+        hop_length = int(HOP_DURATION_S * sr)
 
         # Спектральные признаки
         spec_centroid = librosa.feature.spectral_centroid(
@@ -586,8 +590,8 @@ def extract_nasal_features(y: np.ndarray, sr: int) -> np.ndarray:
     """
     try:
         # Параметры для анализа
-        frame_length = int(0.025 * sr)
-        hop_length = int(0.010 * sr)
+        frame_length = int(FRAME_DURATION_S * sr)
+        hop_length = int(HOP_DURATION_S * sr)
 
         # STFT для спектрального анализа
         spectrogram = np.abs(librosa.stft(y, n_fft=frame_length, hop_length=hop_length))
@@ -644,7 +648,7 @@ def extract_jitter_shimmer(y: np.ndarray, sr: int) -> np.ndarray:
     """
     try:
         # Параметры
-        frame_length = int(0.025 * sr)
+        frame_length = int(FRAME_DURATION_S * sr)
         hop_length = int(0.01 * sr)
 
         # Находим основной тон во всех фреймах
@@ -743,8 +747,8 @@ def extract_yamnet(y: np.ndarray, sr: int) -> np.ndarray:
     """
     try:
         # Привести частоту дискретизации к требуемой для YAMNet
-        if sr != 16000:
-            y = librosa.resample(y, orig_sr=sr, target_sr=16000)
+        if sr != SAMPLE_RATE:
+            y = librosa.resample(y, orig_sr=sr, target_sr=SAMPLE_RATE)
 
         # Преобразование в тензор
         waveform = tf.convert_to_tensor(y, dtype=tf.float32)

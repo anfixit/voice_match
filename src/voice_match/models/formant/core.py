@@ -10,6 +10,9 @@ import numpy as np
 import scipy.linalg
 import scipy.signal
 
+from voice_match.constants import (
+    SAMPLE_RATE,
+)
 from voice_match.log import setup_logger
 
 log = setup_logger("formant_core")
@@ -22,7 +25,7 @@ class FormantAnalyzer:
     характеристики человека, которые сложно подделать.
     """
 
-    def __init__(self, sample_rate: int = 16000):
+    def __init__(self, sample_rate: int = SAMPLE_RATE):
         """
         Инициализирует анализатор формант.
 

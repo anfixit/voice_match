@@ -4,6 +4,9 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_hub as hub
 
+from voice_match.constants import (
+    SAMPLE_RATE,
+)
 from voice_match.log import setup_logger
 
 log = setup_logger("yamnet_model")
@@ -17,7 +20,7 @@ class EnhancedYAMNet:
         self.model = None
         self.class_names = None
         self.embedding_dim = 1024  # Размерность YAMNet эмбеддинга
-        self.sample_rate = 16000  # Частота дискретизации для YAMNet
+        self.sample_rate = SAMPLE_RATE
 
     def load_model(self):
         """Загружает предобученную модель YAMNet"""
@@ -83,7 +86,7 @@ class EnhancedYAMNet:
 
         return embedding.numpy()
 
-    def extract_with_timestamps(self, wav: np.ndarray, sr: int = 16000) -> dict[str, np.ndarray | list[float]]:
+    def extract_with_timestamps(self, wav: np.ndarray, sr: int = SAMPLE_RATE) -> dict[str, np.ndarray | list[float]]:
         """
         Извлекает YAMNet эмбеддинги и классы с временными метками.
 
