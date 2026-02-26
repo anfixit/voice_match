@@ -1,5 +1,7 @@
 import os
 
+from functools import lru_cache
+
 import librosa
 import numpy as np
 import torch
@@ -228,6 +230,7 @@ class AntiSpoofingDetector:
         return result
 
 
+@lru_cache(maxsize=1)
 def get_antispoofing_detector():
     """
     Загружает и возвращает детектор подделок голоса.

@@ -4,6 +4,8 @@
 """
 
 
+from functools import lru_cache
+
 import numpy as np
 
 from voice_match.constants import (
@@ -277,6 +279,7 @@ class FormantTracker:
         return detailed_comparison
 
 
+@lru_cache(maxsize=1)
 def get_formant_tracker(sample_rate: int = SAMPLE_RATE) -> FormantTracker:
     """
     Возвращает экземпляр трекера формант.

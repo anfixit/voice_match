@@ -1,4 +1,4 @@
-
+from functools import lru_cache
 
 import librosa
 import numpy as np
@@ -1181,6 +1181,7 @@ class VoiceFeatureExtractor:
         # Среднее сходство
         return np.mean(similarities) if similarities else 0.0
 
+@lru_cache(maxsize=1)
 def get_voice_feature_extractor():
     """
     Возвращает экземпляр экстрактора голосовых признаков.

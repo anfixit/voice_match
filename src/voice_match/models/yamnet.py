@@ -1,3 +1,4 @@
+from functools import lru_cache
 
 import librosa
 import numpy as np
@@ -275,6 +276,7 @@ class EnhancedYAMNet:
         return masking_probabilities
 
 
+@lru_cache(maxsize=1)
 def get_yamnet() -> EnhancedYAMNet:
     """
     Возвращает экземпляр улучшенной модели YAMNet.

@@ -1,13 +1,10 @@
 import json
 
-from functools import lru_cache
-
 import librosa
 import noisereduce as nr
 import numpy as np
 import scipy.signal
 import scipy.stats
-import tensorflow as tf
 import torch
 import webrtcvad
 
@@ -34,13 +31,18 @@ from voice_match.constants import (
 
 # Импорты новых моделей
 from voice_match.detection.antispoofing import get_antispoofing_detector
+from voice_match.features.formant_dynamics import extract_formant_dynamics
+from voice_match.features.fricative import extract_fricative_features
+from voice_match.features.jitter_shimmer import extract_jitter_shimmer
+from voice_match.features.nasal import extract_nasal_features
+from voice_match.features.vocal_tract import extract_vocal_tract_length
 from voice_match.features.voice_features import get_voice_feature_extractor
+from voice_match.features.yamnet_features import extract_yamnet
 from voice_match.log import setup_logger
 from voice_match.models.ecapa import get_ecapa
 from voice_match.models.formant.tracker import get_formant_tracker
 from voice_match.models.resemblyzer import get_resemblyzer
 from voice_match.models.xvector import get_xvector
-from voice_match.models.yamnet import get_yamnet
 
 # ─────────────────────── Логирование ───────────────────────
 log = setup_logger("voice_match")
@@ -69,47 +71,18 @@ vad = webrtcvad.Vad(3)  # Максимальная чувствительнос�
 
 
 # ─────────────────────── Модели (ленивая загрузка) ───────────────────────
-@lru_cache(maxsize=1)
-def lazy_ecapa():
-    """Загружает ECAPA-TDNN модель при первом обращении и кэширует результат."""
-    return get_ecapa()
 
 
-@lru_cache(maxsize=1)
-def lazy_xvector():
-    """Загружает x-vector модель при первом обращении и кэширует результат."""
-    return get_xvector()
 
 
-@lru_cache(maxsize=1)
-def lazy_yamnet():
-    """Загружает YAMNet модель при первом обращении и кэширует результат."""
-    return get_yamnet()
 
 
-@lru_cache(maxsize=1)
-def lazy_res():
-    """Загружает Resemblyzer при первом обращении и кэширует результат."""
-    return get_resemblyzer()
 
 
-@lru_cache(maxsize=1)
-def lazy_antispoofing():
-    """Загружает детектор подделок голоса при первом обращении и кэширует результат."""
-    return get_antispoofing_detector()
 
 
-@lru_cache(maxsize=1)
-def lazy_formant_tracker():
-    """Загружает трекер формант при первом обращении и кэширует результат."""
-    return get_formant_tracker()
 
 
-@lru_cache(maxsize=1)
-def lazy_voice_features():
-    """Загружает экстрактор голосовых характеристик при первом обращении и кэширует результат."""
-
-    return get_voice_feature_extractor()
 
 
 # ─────────────────────── Обработка ───────────────────────
@@ -448,321 +421,6 @@ def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> dict[s
         return None
 
 
-def extract_formant_dynamics(formants: dict[str, np.ndarray]) -> np.ndarray:
-    """
-    Извлекает характеристики динамики формант, важные для идентификации.
-
-    Args:
-        formants: Словарь с формантами из extract_formants_advanced
-
-    Returns:
-        Вектор признаков динамики формант
-    """
-    if formants is None:
-        return np.zeros(12)
-
-    features = []
-
-    # Для каждой форманты извлекаем статистические признаки
-    for key in ["F1", "F2", "F3", "F4"]:
-        values = formants[key]
-        if len(values) > 2:  # Если есть достаточно данных
-            # Среднее значение
-            features.append(np.mean(values))
-
-            # Стандартное отклонение (вариабельность)
-            features.append(np.std(values))
-
-            # Диапазон (размах)
-            features.append(np.max(values) - np.min(values))
-        else:
-            # Если данных недостаточно, добавляем нули
-            features.extend([0, 0, 0])
-
-    return np.array(features)
-
-
-def extract_vocal_tract_length(formants: dict[str, np.ndarray]) -> float:
-    """
-    Оценивает длину голосового тракта на основе формант F1-F4.
-    Длина тракта - биометрическая характеристика, не меняющаяся со временем.
-
-    Args:
-        formants: Словарь с формантами
-
-    Returns:
-        Оценка длины голосового тракта в см
-    """
-    if formants is None:
-        return 0.0
-
-    # Для оценки используем форманты F3 и F4 (наиболее стабильные)
-    f3_values = formants["F3"]
-    f4_values = formants["F4"]
-
-    if len(f3_values) > 0 and len(f4_values) > 0:
-        # Средние значения формант
-        f3_mean = np.mean(f3_values)
-        f4_mean = np.mean(f4_values)
-
-        # Оценка длины голосового тракта
-        # VTL (см) = c / (2 * F3), где c - скорость звука в воздухе (34400 см/с)
-        vtl_from_f3 = 34400 / (2 * f3_mean)
-        vtl_from_f4 = 34400 / (2 * f4_mean)
-
-        # Итоговая оценка (среднее)
-        return (vtl_from_f3 + vtl_from_f4) / 2
-
-    return 0.0
-
-
-def extract_fricative_features(y: np.ndarray, sr: int) -> np.ndarray:
-    """
-    Извлекает признаки фрикативных согласных (ш, с, ф, в, etc).
-    Характеристики этих звуков зависят от анатомии речевого аппарата.
-
-    Args:
-        y: Аудиосигнал
-        sr: Частота дискретизации
-
-    Returns:
-        Вектор признаков фрикативных звуков
-    """
-    try:
-        # Параметры для анализа
-        frame_length = int(FRAME_DURATION_S * sr)
-        hop_length = int(HOP_DURATION_S * sr)
-
-        # Спектральные признаки
-        spec_centroid = librosa.feature.spectral_centroid(
-            y=y, sr=sr, n_fft=frame_length, hop_length=hop_length).flatten()
-
-        spec_flatness = librosa.feature.spectral_flatness(
-            y=y, n_fft=frame_length, hop_length=hop_length).flatten()
-
-        # Энергия в высокочастотных диапазонах (характерно для фрикативных)
-        stft = np.abs(librosa.stft(y, n_fft=frame_length, hop_length=hop_length))
-
-        # Частотные полосы для фрикативных
-        # 1. 2000-4000 Hz (s, z)
-        # 2. 4000-8000 Hz (sh, zh)
-        freq_bins = librosa.fft_frequencies(sr=sr, n_fft=frame_length)
-        mask_s = (freq_bins >= 2000) & (freq_bins <= 4000)
-        mask_sh = (freq_bins >= 4000) & (freq_bins <= 8000)
-
-        energy_s = np.mean(stft[mask_s, :], axis=0)
-        energy_sh = np.mean(stft[mask_sh, :], axis=0)
-
-        # Отношение энергий - характеристика индивидуальных особенностей
-        ratio = np.zeros_like(energy_s)
-        mask = energy_s > 0
-        ratio[mask] = energy_sh[mask] / energy_s[mask]
-
-        # Формируем вектор признаков фрикативных
-        features = np.array([
-            np.mean(spec_centroid),
-            np.std(spec_centroid),
-            np.mean(spec_flatness),
-            np.std(spec_flatness),
-            np.mean(energy_s),
-            np.mean(energy_sh),
-            np.mean(ratio),
-            np.std(ratio)
-        ])
-
-        return features
-    except Exception as e:
-        log.warning('Ошибка при извлечении признаков фрикативных: %s', e)
-        return np.zeros(8)
-
-
-def extract_nasal_features(y: np.ndarray, sr: int) -> np.ndarray:
-    """
-    Извлекает признаки носовых звуков (м, н).
-    Носовые резонансы - уникальная характеристика голоса.
-
-    Args:
-        y: Аудиосигнал
-        sr: Частота дискретизации
-
-    Returns:
-        Вектор признаков носовых звуков
-    """
-    try:
-        # Параметры для анализа
-        frame_length = int(FRAME_DURATION_S * sr)
-        hop_length = int(HOP_DURATION_S * sr)
-
-        # STFT для спектрального анализа
-        spectrogram = np.abs(librosa.stft(y, n_fft=frame_length, hop_length=hop_length))
-
-        # Частотные полосы для носовых резонансов
-        # Основной носовой резонанс: 250-450 Hz
-        # Второй носовой резонанс: 1000-1200 Hz
-        freq_bins = librosa.fft_frequencies(sr=sr, n_fft=frame_length)
-        mask_nasal1 = (freq_bins >= 250) & (freq_bins <= 450)
-        mask_nasal2 = (freq_bins >= 1000) & (freq_bins <= 1200)
-
-        # Средняя энергия в полосах
-        energy_nasal1 = np.mean(spectrogram[mask_nasal1, :], axis=0)
-        energy_nasal2 = np.mean(spectrogram[mask_nasal2, :], axis=0)
-
-        # Отношение ко всему спектру
-        energy_total = np.mean(spectrogram, axis=0)
-        ratio1 = np.zeros_like(energy_nasal1)
-        ratio2 = np.zeros_like(energy_nasal2)
-
-        mask = energy_total > 0
-        ratio1[mask] = energy_nasal1[mask] / energy_total[mask]
-        ratio2[mask] = energy_nasal2[mask] / energy_total[mask]
-
-        # Сбор признаков
-        features = np.array([
-            np.mean(energy_nasal1),
-            np.std(energy_nasal1),
-            np.mean(energy_nasal2),
-            np.std(energy_nasal2),
-            np.mean(ratio1),
-            np.std(ratio1),
-            np.mean(ratio2),
-            np.std(ratio2)
-        ])
-
-        return features
-    except Exception as e:
-        log.warning('Ошибка при извлечении признаков носовых: %s', e)
-        return np.zeros(8)
-
-
-def extract_jitter_shimmer(y: np.ndarray, sr: int) -> np.ndarray:
-    """
-    Извлекает показатели микровариаций голоса: джиттер и шиммер.
-    Эти параметры очень трудно подделать даже голосовым модификатором.
-
-    Args:
-        y: Аудиосигнал
-        sr: Частота дискретизации
-
-    Returns:
-        Вектор признаков дрожания голоса
-    """
-    try:
-        # Параметры
-        frame_length = int(FRAME_DURATION_S * sr)
-        hop_length = int(0.01 * sr)
-
-        # Находим основной тон во всех фреймах
-        pitches, magnitudes = librosa.core.piptrack(
-            y=y, sr=sr,
-            n_fft=frame_length,
-            hop_length=hop_length,
-            fmin=50,
-            fmax=400
-        )
-
-        # Для каждого фрейма берем частоту с максимальной магнитудой
-        pitch_values = []
-        magnitude_values = []
-
-        for t in range(pitches.shape[1]):
-            index = magnitudes[:, t].argmax()
-            pitch = pitches[index, t]
-            magnitude = magnitudes[index, t]
-
-            # Записываем только ненулевые частоты (вокализованные участки)
-            if pitch > 0 and magnitude > 0:
-                pitch_values.append(pitch)
-                magnitude_values.append(magnitude)
-
-        # Если недостаточно вокализованных фреймов
-        if len(pitch_values) < 5:
-            return np.zeros(8)
-
-        pitch_values = np.array(pitch_values)
-        magnitude_values = np.array(magnitude_values)
-
-        # Вычисление джиттера (вариации периода основного тона)
-        periods = 1.0 / pitch_values
-        period_diffs = np.abs(np.diff(periods))
-
-        # Локальный джиттер (отношение средней разницы к среднему периоду)
-        local_jitter = np.mean(period_diffs) / np.mean(periods) * 100
-
-        # Абсолютный джиттер (средняя абсолютная разница)
-        absolute_jitter = np.mean(period_diffs) * 1000  # в миллисекундах
-
-        # PPQ5 (5-point period perturbation quotient)
-        ppq5_values = []
-        for i in range(2, len(periods) - 2):
-            avg_period = np.mean(periods[i - 2:i + 3])
-            ppq5_values.append(abs(periods[i] - avg_period))
-        ppq5 = np.mean(ppq5_values) / np.mean(periods) * 100 if ppq5_values else 0
-
-        # Вычисление шиммера (вариации амплитуды)
-        amplitude_diffs = np.abs(np.diff(magnitude_values))
-
-        # Локальный шиммер
-        local_shimmer = np.mean(amplitude_diffs) / np.mean(magnitude_values) * 100
-
-        # Абсолютный шиммер (в дБ)
-        db_values = 20 * np.log10(magnitude_values / np.max(magnitude_values))
-        db_diffs = np.abs(np.diff(db_values))
-        absolute_shimmer_db = np.mean(db_diffs)
-
-        # APQ5 (5-point amplitude perturbation quotient)
-        apq5_values = []
-        for i in range(2, len(magnitude_values) - 2):
-            avg_amp = np.mean(magnitude_values[i - 2:i + 3])
-            apq5_values.append(abs(magnitude_values[i] - avg_amp))
-        apq5 = np.mean(apq5_values) / np.mean(magnitude_values) * 100 if apq5_values else 0
-
-        # Вектор признаков
-        features = np.array([
-            local_jitter,
-            absolute_jitter,
-            ppq5,
-            np.std(period_diffs) / np.mean(periods) * 100,  # вариабельность джиттера
-            local_shimmer,
-            absolute_shimmer_db,
-            apq5,
-            np.std(amplitude_diffs) / np.mean(magnitude_values) * 100  # вариабельность шиммера
-        ])
-
-        return features
-    except Exception as e:
-        log.warning('Ошибка при извлечении джиттера/шиммера: %s', e)
-        return np.zeros(8)
-
-
-def extract_yamnet(y: np.ndarray, sr: int) -> np.ndarray:
-    """
-    Извлекает перцептивные признаки с помощью YAMNet.
-
-    Args:
-        y: Аудиосигнал
-        sr: Частота дискретизации
-
-    Returns:
-        Вектор embedding из YAMNet
-    """
-    try:
-        # Привести частоту дискретизации к требуемой для YAMNet
-        if sr != SAMPLE_RATE:
-            y = librosa.resample(y, orig_sr=sr, target_sr=SAMPLE_RATE)
-
-        # Преобразование в тензор
-        waveform = tf.convert_to_tensor(y, dtype=tf.float32)
-
-        # Получение эмбеддингов из YAMNet
-        _, embeddings, _ = lazy_yamnet()(waveform)
-
-        # Возвращаем среднее значение эмбеддингов по времени
-        return embeddings.numpy().mean(axis=0)
-    except Exception as e:
-        log.warning('Ошибка при извлечении YAMNet признаков: %s', e)
-        return np.zeros(1024)  # YAMNet embeddings имеют размерность 1024
-
-
 def calculate_confidence_interval(similarities: list[float]) -> tuple[float, float]:
     """
     Вычисляет доверительный интервал для средней оценки сходства.
@@ -821,7 +479,7 @@ def compare_voices_dual(file1: str, file2: str, weights: dict = weights) -> tupl
     y2 = preprocess(y2)
 
     # === НОВОЕ: Проверка на синтетический голос с помощью модели AntiSpoofing ===
-    antispoofing = lazy_antispoofing()
+    antispoofing = get_antispoofing_detector()
     spoof_result1 = antispoofing.detect(y1, SAMPLE_RATE)
     spoof_result2 = antispoofing.detect(y2, SAMPLE_RATE)
 
@@ -878,7 +536,7 @@ def compare_voices_dual(file1: str, file2: str, weights: dict = weights) -> tupl
     }
 
     # === НОВОЕ: Запуск расширенного анализа формант через FormantTracker ===
-    formant_tracker = lazy_formant_tracker()
+    formant_tracker = get_formant_tracker()
     formant_tracks1 = formant_tracker.track_formants(y1)
     formant_tracks2 = formant_tracker.track_formants(y2)
 
@@ -894,7 +552,7 @@ def compare_voices_dual(file1: str, file2: str, weights: dict = weights) -> tupl
     formant_comparison = formant_tracker.compare_formant_profiles(formant_stats1, formant_stats2)
 
     # === НОВОЕ: Извлечение полных голосовых характеристик через VoiceFeatureExtractor ===
-    voice_features = lazy_voice_features()
+    voice_features = get_voice_feature_extractor()
     features1 = voice_features.extract_all_features(y1)
     features2 = voice_features.extract_all_features(y2)
 
@@ -902,9 +560,9 @@ def compare_voices_dual(file1: str, file2: str, weights: dict = weights) -> tupl
     voice_features_comparison = voice_features.compare_voice_features(features1, features2)
 
     # Загрузка остальных моделей
-    ecapa = lazy_ecapa()
-    xvector = lazy_xvector()
-    res = lazy_res()
+    ecapa = get_ecapa()
+    xvector = get_xvector()
+    res = get_resemblyzer()
 
     # Сравнение сегментов
     for s1, s2 in zip(segments1, segments2, strict=False):

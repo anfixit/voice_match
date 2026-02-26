@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import lru_cache
 
 import numpy as np
 import torch
@@ -200,6 +201,7 @@ class EnhancedXVector:
         }
 
 
+@lru_cache(maxsize=1)
 def get_xvector() -> Callable:
     """
     Возвращает функцию для извлечения X-vector эмбеддингов.

@@ -1,3 +1,4 @@
+from functools import lru_cache
 
 import numpy as np
 import torch
@@ -256,6 +257,7 @@ class EnhancedEcapa:
             return {"embedding": self.encode_batch(waveform)}
 
 
+@lru_cache(maxsize=1)
 def get_ecapa(device: str = "cpu") -> EnhancedEcapa:
     """
     Возвращает экземпляр улучшенной модели ECAPA-TDNN.

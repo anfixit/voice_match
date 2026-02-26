@@ -1,3 +1,4 @@
+from functools import lru_cache
 
 import numpy as np
 
@@ -247,6 +248,7 @@ class EnhancedResemblyzer:
             }
 
 
+@lru_cache(maxsize=1)
 def get_resemblyzer() -> EnhancedResemblyzer:
     """
     Возвращает экземпляр улучшенной модели Resemblyzer.
