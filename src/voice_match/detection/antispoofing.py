@@ -88,8 +88,11 @@ class AntiSpoofingDetector:
             audio = np.pad(audio, (0, segment_samples - audio.size))
 
         scores: list[float] = []
-        for start in range(0, audio.size - segment_samples + 1,
-                           segment_samples):
+        for start in range(
+            0,
+            audio.size - segment_samples + 1,
+            segment_samples,
+        ):
             segment = torch.from_numpy(
                 audio[start:start + segment_samples],
             ).unsqueeze(0)

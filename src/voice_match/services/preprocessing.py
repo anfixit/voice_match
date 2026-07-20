@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TypedDict
 
 import soundfile as sf
-
 from pydub import AudioSegment
 from pydub.exceptions import CouldntDecodeError
 
