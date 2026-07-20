@@ -1,774 +1,270 @@
-import json
+"""Оркестрация честного baseline-сравнения голосов."""
+
+from pathlib import Path
 
 import librosa
-import noisereduce as nr
 import numpy as np
-import scipy.signal
-import scipy.stats
-import torch
-import webrtcvad
 
-from audiomentations import BandPassFilter, Compose, Normalize
-
-from voice_match.constants import (
-    BANDPASS_MAX_CENTER_FREQ,
-    BANDPASS_MIN_CENTER_FREQ,
-    CONFIDENCE_LEVEL,
-    DEFAULT_WEIGHTS,
-    FORMANT_LIMITS,
-    FRAME_DURATION_S,
-    FRAME_LENGTH,
-    HOP_DURATION_S,
-    HOP_LENGTH,
-    PITCH_JUMP_THRESHOLD_SEMITONES,
-    SAMPLE_RATE,
-    SEGMENT_COUNT,
-    SEGMENT_DURATION,
-    VAD_FRAME_MS,
-    VAD_SPEECH_THRESHOLD,
-    WEIGHTS_PATH,
+from voice_match.config import settings
+from voice_match.constants import SAMPLE_RATE
+from voice_match.detection.antispoofing import (
+    get_antispoofing_detector,
 )
-
-# Импорты новых моделей
-from voice_match.detection.antispoofing import get_antispoofing_detector
-from voice_match.features.formant_dynamics import extract_formant_dynamics
-from voice_match.features.fricative import extract_fricative_features
-from voice_match.features.jitter_shimmer import extract_jitter_shimmer
-from voice_match.features.nasal import extract_nasal_features
-from voice_match.features.vocal_tract import extract_vocal_tract_length
-from voice_match.features.voice_features import get_voice_feature_extractor
-from voice_match.features.yamnet_features import extract_yamnet
+from voice_match.exceptions import (
+    AudioValidationError,
+    ModelUnavailableError,
+)
 from voice_match.log import setup_logger
 from voice_match.models.ecapa import get_ecapa
-from voice_match.models.formant.tracker import get_formant_tracker
-from voice_match.models.resemblyzer import get_resemblyzer
-from voice_match.models.xvector import get_xvector
+from voice_match.scoring.similarity import (
+    SimilaritySummary,
+    summarize_embeddings,
+)
+from voice_match.services.quality import (
+    AudioQuality,
+    analyze_audio_quality,
+    extract_speech_segments,
+)
 
-# ─────────────────────── Логирование ───────────────────────
-log = setup_logger("voice_match")
+log = setup_logger('comparison')
 
-# ─────────────────────── Аугментация ───────────────────────
-augment = Compose([
-    Normalize(p=1.0),
-    BandPassFilter(
-    min_center_freq=BANDPASS_MIN_CENTER_FREQ,
-    max_center_freq=BANDPASS_MAX_CENTER_FREQ,
-    p=1.0,
-),
-])
-
-
-try:
-    with open(WEIGHTS_PATH) as f:
-        weights = json.load(f)
-    log.info("Весовые коэффициенты загружены из weights.json")
-except Exception:
-    weights = DEFAULT_WEIGHTS
-    log.warning("weights.json не найден, используются по умолчанию")
-
-# ─────────────────────── Детектор речи ───────────────────────
-vad = webrtcvad.Vad(3)  # Максимальная чувствительность
+_DISCLAIMER = (
+    'Результат является исследовательской инструментальной оценкой. '
+    'Он не является вероятностью принадлежности голоса, LLR или '
+    'заключением судебного эксперта.'
+)
 
 
-# ─────────────────────── Модели (ленивая загрузка) ───────────────────────
+def compare_voices_dual(file1: str, file2: str) -> tuple[str, str]:
+    """Сравнить две записи через ECAPA speaker embeddings.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ─────────────────────── Обработка ───────────────────────
-def preprocess(y: np.ndarray) -> np.ndarray:
+    Автоматическое решение same/different не выносится до появления
+    калибровки на целевом наборе данных.
     """
-    Предобработка аудиосигнала:
-    1. Нормализация амплитуды
-    2. Шумоподавление
-    3. Полосовая фильтрация голосового диапазона
-
-    Args:
-        y: Аудиосигнал в формате numpy array
-
-    Returns:
-        Обработанный аудиосигнал
-    """
-    # Нормализация амплитуды
-    y = librosa.util.normalize(y)
-
-    # Шумоподавление с сохранением речевых характеристик
-    y = nr.reduce_noise(
-        y=y,
-        sr=SAMPLE_RATE,
-        stationary=False,  # Нестационарный шум (более точно для реальных записей)
-        prop_decrease=0.75  # Сохраняем 25% шума для достоверности
+    first_path = Path(file1)
+    second_path = Path(file2)
+    log.info(
+        'Запущено сравнение файлов %s и %s',
+        first_path.name,
+        second_path.name,
     )
 
-    # Полосовая фильтрация в диапазоне человеческого голоса
-    y = augment(samples=y, sample_rate=SAMPLE_RATE)
-
-    return y
-
-
-def get_segments(y: np.ndarray, sr: int, duration: float = SEGMENT_DURATION,
-                 count: int = SEGMENT_COUNT) -> list[np.ndarray]:
-    """
-    Извлекает сегменты речи из аудиосигнала с перекрытием.
-    Выбирает только сегменты с обнаруженной речью.
-
-    Args:
-        y: Аудиосигнал
-        sr: Частота дискретизации
-        duration: Длительность сегмента в секундах
-        count: Максимальное количество сегментов
-
-    Returns:
-        Список сегментов с речью
-    """
-    window_size = int(sr * duration)
-    hop = int(sr * duration / 2)  # 50% перекрытие
-
-    # Вычисляем энергию сигнала для каждого фрейма
-    energy = librosa.feature.rms(y=y)[0]
-    energy_norm = energy / np.max(energy) if np.max(energy) > 0 else energy
-
-    # Находим сегменты с высокой энергией
-    energy_segments = []
-    for start in range(0, len(y) - window_size, hop):
-        end = start + window_size
-        segment = y[start:end]
-
-        # Проверяем наличие речи с помощью VAD
-        if is_voiced(segment, sr):
-            # Вычисляем среднюю энергию сегмента
-            start_frame = start // hop
-            end_frame = min(start_frame + (window_size // hop), len(energy_norm))
-            mean_energy = np.mean(energy_norm[start_frame:end_frame])
-
-            energy_segments.append((segment, mean_energy, start))
-
-    # Сортируем сегменты по энергии (от высокой к низкой)
-    energy_segments.sort(key=lambda x: x[1], reverse=True)
-
-    # Берем сегменты с наибольшей энергией, но стараемся выбрать
-    # из разных частей записи (не подряд идущие)
-    selected_segments = []
-    selected_starts = set()
-
-    for segment, _, start in energy_segments:
-        # Проверяем, не перекрывается ли с уже выбранными
-        is_overlapping = False
-        for sel_start in selected_starts:
-            if abs(start - sel_start) < window_size // 2:
-                is_overlapping = True
-                break
-
-        if not is_overlapping:
-            selected_segments.append(segment)
-            selected_starts.add(start)
-
-            if len(selected_segments) >= count:
-                break
-
-    # Если нашли меньше сегментов, чем нужно, используем все что есть
-    if len(selected_segments) < count and energy_segments:
-        count - len(selected_segments)
-        for segment, _, _ in energy_segments:
-            if segment not in selected_segments:
-                selected_segments.append(segment)
-                if len(selected_segments) >= count:
-                    break
-
-    return selected_segments
-
-
-def is_voiced(segment: np.ndarray, sr: int) -> bool:
-    """
-    Определяет наличие речи в сегменте с помощью WebRTC VAD.
-
-    Args:
-        segment: Сегмент аудиосигнала
-        sr: Частота дискретизации
-
-    Returns:
-        True если обнаружена речь, иначе False
-    """
-    # Преобразуем в 16-битный формат для VAD
-    int16_audio = (segment * 32767).astype(np.int16)
-
-    # Размер фрейма для VAD (30 мс рекомендовано)
-    frame_size = int(sr * VAD_FRAME_MS / 1000)
-    voice_frames = 0
-    total_frames = 0
-
-    # Анализируем фреймы
-    for i in range(0, len(int16_audio) - frame_size, frame_size):
-        frame = int16_audio[i:i + frame_size].tobytes()
-        if vad.is_speech(frame, sr):
-            voice_frames += 1
-        total_frames += 1
-
-    # Если более 15% фреймов содержат речь, считаем сегмент речевым
-    return voice_frames > VAD_SPEECH_THRESHOLD * total_frames if total_frames > 0 else False
-
-
-def detect_voice_modification(y: np.ndarray, sr: int) -> tuple[bool, str | None]:
-    """
-    Обнаруживает признаки использования голосовых модификаторов.
-
-    Args:
-        y: Аудиосигнал
-        sr: Частота дискретизации
-
-    Returns:
-        (is_modified, modifier_type): Флаг модификации и тип модификатора
-    """
-    # Извлекаем основные признаки
-    pitched_segments = 0
-    total_segments = 0
-    frame_length = FRAME_LENGTH
-    hop_length = HOP_LENGTH
-
-    # Анализ основного тона
-    pitches, magnitudes = librosa.core.piptrack(
-        y=y, sr=sr,
-        n_fft=frame_length,
-        hop_length=hop_length,
-        fmin=50,
-        fmax=400
-    )
-
-    # Ищем неестественные скачки основного тона
-    pitch_changes = []
-    prev_pitch = None
-
-    # Для каждого фрейма находим максимальную магнитуду
-    for t in range(pitches.shape[1]):
-        index = magnitudes[:, t].argmax()
-        pitch = pitches[index, t]
-
-        # Если тон определен (не ноль)
-        if pitch > 0:
-            if prev_pitch is not None and prev_pitch > 0:
-                # Вычисляем изменение в полутонах
-                semitones = 12 * np.log2(pitch / prev_pitch)
-                pitch_changes.append(abs(semitones))
-            prev_pitch = pitch
-            pitched_segments += 1
-        total_segments += 1
-
-    # Проверяем признаки механического изменения голоса
-    if pitched_segments > 0:
-        # 1. Неестественные скачки основного тона
-        if pitch_changes and np.percentile(pitch_changes, 95) > PITCH_JUMP_THRESHOLD_SEMITONES:
-            return True, "pitch_shift"
-
-        # 2. Признаки "робота": слишком стабильный тон
-        if np.std(pitch_changes) < 0.1 and pitched_segments > 0.5 * total_segments:
-            return True, "robot_voice"
-
-        # 3. Искусственная модуляция формант
-        formants = extract_formants_advanced(y, sr)
-        if formants is not None:
-            f1_std = np.std(formants["F1"]) if formants["F1"].size > 0 else 0
-            f2_std = np.std(formants["F2"]) if formants["F2"].size > 0 else 0
-
-            # Слишком стабильные форманты - признак Voice Changer'а
-            if (f1_std < 10 or f2_std < 20) and pitched_segments > 0.5 * total_segments:
-                return True, "formant_modification"
-
-    return False, None
-
-
-def cosine_similarity(v1: np.ndarray, v2: np.ndarray) -> float:
-    """
-    Вычисляет косинусное сходство между двумя векторами.
-
-    Args:
-        v1: Первый вектор
-        v2: Второй вектор
-
-    Returns:
-        Значение косинусного сходства от -1 до 1
-    """
-    # Предварительная нормализация векторов
-    v1_norm = np.linalg.norm(v1)
-    v2_norm = np.linalg.norm(v2)
-
-    # Проверка на нулевые векторы
-    if v1_norm == 0 or v2_norm == 0:
-        return 0.0
-
-    v1 = v1 / v1_norm
-    v2 = v2 / v2_norm
-
-    # Вычисление косинусного сходства
-    return np.dot(v1, v2)
-
-
-def extract_formants_advanced(y: np.ndarray, sr: int, order: int = 16) -> dict[str, np.ndarray]:
-    """
-    Расширенное извлечение формант с отслеживанием динамики.
-
-    Args:
-        y: Аудиосигнал
-        sr: Частота дискретизации
-        order: Порядок LPC-анализа
-
-    Returns:
-        Словарь с формантами F1-F4 и их динамикой
-    """
     try:
-        # Параметры оконного анализа
-        frame_length = int(FRAME_DURATION_S * sr)  # 25 мс окно
-        hop_length = int(HOP_DURATION_S * sr)  # 10 мс шаг
+        first_audio = _load_audio(first_path)
+        second_audio = _load_audio(second_path)
+        first_quality = _analyze_quality(first_audio)
+        second_quality = _analyze_quality(second_audio)
+        _validate_quality(first_quality, second_quality)
 
-        # Подготовка результатов
-        formants_result = {
-            "F1": np.array([]),
-            "F2": np.array([]),
-            "F3": np.array([]),
-            "F4": np.array([]),
-            "F1_bandwidth": np.array([]),
-            "F2_bandwidth": np.array([]),
-            "F3_bandwidth": np.array([]),
-            "F4_bandwidth": np.array([]),
-        }
-
-        # Проход по фреймам
-        for i in range(0, len(y) - frame_length, hop_length):
-            # Извлекаем фрейм
-            frame = y[i:i + frame_length]
-
-            # Применяем оконную функцию для уменьшения краевых эффектов
-            frame = frame * np.hamming(len(frame))
-
-            # Выполняем LPC-анализ
-            lpc_coeffs = librosa.lpc(frame, order=order)
-
-            # Рассчитываем частотную характеристику
-            w, h = scipy.signal.freqz(1, lpc_coeffs, worN=2000)
-            freqs = w * sr / (2 * np.pi)
-
-            # Преобразуем к амплитудам
-            magnitude = np.abs(h)
-
-            # Находим пики (форманты)
-            peaks, _properties = scipy.signal.find_peaks(
-                magnitude,
-                height=0.1,
-                distance=5,
-                prominence=0.1
+        first_segments = _extract_segments(first_audio)
+        second_segments = _extract_segments(second_audio)
+        if not first_segments or not second_segments:
+            raise AudioValidationError(
+                'Не удалось выделить пригодные речевые сегменты.'
             )
 
-            # Сортируем по частоте
-            sorted_peaks = sorted(peaks, key=lambda x: freqs[x])
-
-            # Фильтруем по известным диапазонам формант
-            valid_formants = []
-            for peak in sorted_peaks:
-                freq = freqs[peak]
-                # Проверяем, попадает ли в диапазон какой-либо форманты
-                for i, (_formant, (fmin, fmax)) in enumerate(FORMANT_LIMITS.items(), 1):
-                    if fmin <= freq <= fmax:
-                        valid_formants.append((i, freq, peak))
-                        break
-
-            # Группируем по номеру форманты
-            grouped_formants = {}
-            for num, freq, peak in valid_formants:
-                if num not in grouped_formants:
-                    grouped_formants[num] = []
-                grouped_formants[num].append((freq, peak))
-
-            # Для каждой форманты выбираем по одному значению с максимальной амплитудой
-            for i in range(1, 5):  # F1-F4
-                formant_key = f"F{i}"
-                bandwidth_key = f"F{i}_bandwidth"
-
-                if grouped_formants.get(i):
-                    # Выбираем пик с наибольшей амплитудой
-                    best_peak = max(grouped_formants[i], key=lambda x: magnitude[x[1]])
-                    formants_result[formant_key] = np.append(formants_result[formant_key], best_peak[0])
-
-                    # Оценка ширины полосы (bandwidth)
-                    peak_idx = best_peak[1]
-                    peak_value = magnitude[peak_idx]
-                    half_power = peak_value / np.sqrt(2)
-
-                    # Ищем точки пересечения с уровнем половинной мощности
-                    left_idx = peak_idx
-                    while left_idx > 0 and magnitude[left_idx] > half_power:
-                        left_idx -= 1
-
-                    right_idx = peak_idx
-                    while right_idx < len(magnitude) - 1 and magnitude[right_idx] > half_power:
-                        right_idx += 1
-
-                    # Вычисляем ширину полосы пропускания
-                    bandwidth = freqs[right_idx] - freqs[left_idx]
-                    formants_result[bandwidth_key] = np.append(formants_result[bandwidth_key], bandwidth)
-
-        return formants_result
-    except Exception as e:
-        log.warning('Ошибка при извлечении формант: %s', e)
-        return None
-
-
-def calculate_confidence_interval(similarities: list[float]) -> tuple[float, float]:
-    """
-    Вычисляет доверительный интервал для средней оценки сходства.
-
-    Args:
-        similarities: Список оценок сходства
-
-    Returns:
-        (lower_bound, upper_bound): Границы доверительного интервала
-    """
-    # Если оценок меньше 2, доверительный интервал не имеет смысла
-    if len(similarities) < 2:
-        return (0.0, 1.0)
-
-    # Вычисляем среднее и стандартное отклонение
-    mean = np.mean(similarities)
-    std_dev = np.std(similarities, ddof=1)  # Несмещенная оценка
-
-    # Степени свободы
-    df = len(similarities) - 1
-
-    # Критическое значение t-распределения для выбранного уровня доверия
-    t_crit = scipy.stats.t.ppf((1 + CONFIDENCE_LEVEL) / 2, df)
-
-    # Стандартная ошибка среднего
-    sem = std_dev / np.sqrt(len(similarities))
-
-    # Доверительный интервал
-    margin_of_error = t_crit * sem
-    lower_bound = max(0.0, mean - margin_of_error)
-    upper_bound = min(1.0, mean + margin_of_error)
-
-    return (lower_bound, upper_bound)
-
-
-def compare_voices_dual(file1: str, file2: str, weights: dict = weights) -> tuple[str, str]:
-    """
-    Выполняет комплексное сравнение двух голосовых файлов.
-
-    Args:
-        file1: Путь к первому аудиофайлу
-        file2: Путь ко второму аудиофайлу
-        weights: Весовые коэффициенты для каждой метрики
-
-    Returns:
-        (verdict, summary): Вердикт о сходстве и подробный отчет
-    """
-    log.info('Сравнение файлов: %s и %s', file1, file2)
-
-    # Загрузка аудиофайлов
-    y1, _ = librosa.load(file1, sr=SAMPLE_RATE)
-    y2, _ = librosa.load(file2, sr=SAMPLE_RATE)
-
-    # Предобработка
-    y1 = preprocess(y1)
-    y2 = preprocess(y2)
-
-    # === НОВОЕ: Проверка на синтетический голос с помощью модели AntiSpoofing ===
-    antispoofing = get_antispoofing_detector()
-    spoof_result1 = antispoofing.detect(y1, SAMPLE_RATE)
-    spoof_result2 = antispoofing.detect(y2, SAMPLE_RATE)
-
-    synthetic_warning = ""
-    is_synthetic = False
-
-    if spoof_result1["is_synthetic"] > 0.7 or spoof_result2["is_synthetic"] > 0.7:
-        synthetic_warning = (
-            f"🚨 ВАЖНОЕ ПРЕДУПРЕЖДЕНИЕ: Обнаружены признаки синтетического голоса или deepfake!\n"
-            f"Файл 1: Вероятность синтетического голоса {spoof_result1['is_synthetic']:.1%}\n"
-            f"Файл 2: Вероятность синтетического голоса {spoof_result2['is_synthetic']:.1%}\n"
-            f"Результаты сравнения крайне ненадежны при наличии синтетического голоса.\n\n"
+        encoder = get_ecapa()
+        first_embeddings = encoder.encode_segments(first_segments)
+        second_embeddings = encoder.encode_segments(second_segments)
+        similarity = summarize_embeddings(
+            first_embeddings,
+            second_embeddings,
         )
-        is_synthetic = True
-
-    # Проверка на модификацию голоса
-    mod1, mod_type1 = detect_voice_modification(y1, SAMPLE_RATE)
-    mod2, mod_type2 = detect_voice_modification(y2, SAMPLE_RATE)
-
-    modification_warning = ""
-    if mod1 or mod2:
-        modification_warning = (
-            f"⚠️ ВНИМАНИЕ: Обнаружены признаки модификации голоса!\n"
-            f"Файл 1: {'Да, тип: ' + mod_type1 if mod1 else 'Нет'}\n"
-            f"Файл 2: {'Да, тип: ' + mod_type2 if mod2 else 'Нет'}\n"
-            f"Результаты сравнения могут быть искажены.\n\n"
+        anti_spoofing = _run_antispoofing(
+            first_audio,
+            second_audio,
         )
-
-    # Получение речевых сегментов
-    segments1 = get_segments(y1, SAMPLE_RATE)
-    segments2 = get_segments(y2, SAMPLE_RATE)
-
-    # Если сегменты не найдены, выдаем ошибку
-    if not segments1 or not segments2:
+    except AudioValidationError as exc:
         return (
-            "⚠️ Ошибка анализа: в одном или обоих файлах не обнаружено достаточно речи",
-            "Убедитесь, что файлы содержат голос и не повреждены."
+            'Недостаточно данных для надёжного сравнения.',
+            f'### Анализ остановлен\n\n{exc}\n\n{_DISCLAIMER}',
+        )
+    except ModelUnavailableError as exc:
+        log.warning('Модель недоступна: %s', exc)
+        return (
+            'Модель сравнения недоступна.',
+            f'### Ошибка модели\n\n{exc}\n\n{_DISCLAIMER}',
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        log.exception('Сравнение завершилось ошибкой')
+        return (
+            'Не удалось выполнить сравнение.',
+            f'### Техническая ошибка\n\n{exc}\n\n{_DISCLAIMER}',
         )
 
-    # Инициализация результатов сравнения
-    sims = {
-        "ecapa": [],  # Нейросетевое сравнение (ECAPA-TDNN)
-        "xvec": [],  # Нейросетевое сравнение (X-vector)
-        "res": [],  # Нейросетевое сравнение (Resemblyzer)
-        "formant": [],  # Базовые форманты
-        "formant_dynamics": [],  # Динамика формант
-        "fricative": [],  # Фрикативные звуки
-        "nasal": [],  # Носовые резонансы
-        "vocal_tract": [],  # Длина голосового тракта
-        "jitter_shimmer": [],  # Микровариации голоса
-        "yamnet": [],  # Перцептивные признаки
-        "voice_features": [],  # Биометрические вектора (новая модель)
-        "formant_tracker": []  # Отслеживание формант (новая модель)
-    }
+    verdict = (
+        'Автоматическое решение same/different не вынесено. '
+        f'Сырой ECAPA cosine score: {similarity.centroid_score:.3f}.'
+    )
+    report = _build_report(
+        first_quality=first_quality,
+        second_quality=second_quality,
+        first_segment_count=len(first_segments),
+        second_segment_count=len(second_segments),
+        similarity=similarity,
+        anti_spoofing=anti_spoofing,
+    )
+    return verdict, report
 
-    # === НОВОЕ: Запуск расширенного анализа формант через FormantTracker ===
-    formant_tracker = get_formant_tracker()
-    formant_tracks1 = formant_tracker.track_formants(y1)
-    formant_tracks2 = formant_tracker.track_formants(y2)
 
-    # Получение статистики формант для обоих голосов
-    formant_stats1 = formant_tracker.compute_formant_statistics(formant_tracks1)
-    formant_stats2 = formant_tracker.compute_formant_statistics(formant_tracks2)
+def _load_audio(path: Path) -> np.ndarray:
+    if not path.is_file():
+        raise AudioValidationError(f'Файл не найден: {path.name}.')
 
-    # Оценка вокального тракта для обоих голосов
-    vocal_tract_estimate1 = formant_tracker.estimate_vocal_tract_length(formant_tracks1)
-    vocal_tract_estimate2 = formant_tracker.estimate_vocal_tract_length(formant_tracks2)
+    try:
+        signal, _ = librosa.load(
+            path,
+            sr=SAMPLE_RATE,
+            mono=True,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise AudioValidationError(
+            f'Не удалось декодировать файл {path.name}.'
+        ) from exc
 
-    # Сравнение формантных профилей
-    formant_comparison = formant_tracker.compare_formant_profiles(formant_stats1, formant_stats2)
-
-    # === НОВОЕ: Извлечение полных голосовых характеристик через VoiceFeatureExtractor ===
-    voice_features = get_voice_feature_extractor()
-    features1 = voice_features.extract_all_features(y1)
-    features2 = voice_features.extract_all_features(y2)
-
-    # Сравнение голосовых характеристик
-    voice_features_comparison = voice_features.compare_voice_features(features1, features2)
-
-    # Загрузка остальных моделей
-    ecapa = get_ecapa()
-    xvector = get_xvector()
-    res = get_resemblyzer()
-
-    # Сравнение сегментов
-    for s1, s2 in zip(segments1, segments2, strict=False):
-        # Преобразование в тензоры для нейросетевых моделей
-        t1 = torch.tensor(s1).unsqueeze(0)
-        t2 = torch.tensor(s2).unsqueeze(0)
-
-        # Сравнение ECAPA-TDNN
-        sims["ecapa"].append(cosine_similarity(
-            ecapa.encode_batch(t1).squeeze().detach().numpy(),
-            ecapa.encode_batch(t2).squeeze().detach().numpy()
-        ))
-
-        # Сравнение Resemblyzer
-        sims["res"].append(cosine_similarity(
-            res.embed_utterance(s1), res.embed_utterance(s2)))
-
-        # Сравнение X-vector
-        sims["xvec"].append(cosine_similarity(
-            xvector(t1).squeeze().numpy(), xvector(t2).squeeze().numpy()))
-
-        # Извлечение и сравнение признаков формант
-        formants1 = extract_formants_advanced(s1, SAMPLE_RATE)
-        formants2 = extract_formants_advanced(s2, SAMPLE_RATE)
-
-        if formants1 is not None and formants2 is not None:
-            # Формантный анализ (сходство F1-F4)
-            formant_vector1 = np.concatenate([
-                np.mean(formants1["F1"]) if formants1["F1"].size > 0 else np.array([0]),
-                np.mean(formants1["F2"]) if formants1["F2"].size > 0 else np.array([0]),
-                np.mean(formants1["F3"]) if formants1["F3"].size > 0 else np.array([0]),
-                np.mean(formants1["F4"]) if formants1["F4"].size > 0 else np.array([0])
-            ])
-
-            formant_vector2 = np.concatenate([
-                np.mean(formants2["F1"]) if formants2["F1"].size > 0 else np.array([0]),
-                np.mean(formants2["F2"]) if formants2["F2"].size > 0 else np.array([0]),
-                np.mean(formants2["F3"]) if formants2["F3"].size > 0 else np.array([0]),
-                np.mean(formants2["F4"]) if formants2["F4"].size > 0 else np.array([0])
-            ])
-
-            sims["formant"].append(cosine_similarity(formant_vector1, formant_vector2))
-
-            # Динамика формант
-            dynamics1 = extract_formant_dynamics(formants1)
-            dynamics2 = extract_formant_dynamics(formants2)
-            sims["formant_dynamics"].append(cosine_similarity(dynamics1, dynamics2))
-
-            # Длина голосового тракта
-            vtl1 = extract_vocal_tract_length(formants1)
-            vtl2 = extract_vocal_tract_length(formants2)
-            # Нормализованное сходство для длины тракта (абсолютная разница)
-            vtl_sim = 1.0 - min(abs(vtl1 - vtl2) / 5.0, 1.0)  # Нормализация по 5 см максимальной разницы
-            sims["vocal_tract"].append(vtl_sim)
-
-        # Фрикативные звуки
-        fricative1 = extract_fricative_features(s1, SAMPLE_RATE)
-        fricative2 = extract_fricative_features(s2, SAMPLE_RATE)
-        sims["fricative"].append(cosine_similarity(fricative1, fricative2))
-
-        # Носовые резонансы
-        nasal1 = extract_nasal_features(s1, SAMPLE_RATE)
-        nasal2 = extract_nasal_features(s2, SAMPLE_RATE)
-        sims["nasal"].append(cosine_similarity(nasal1, nasal2))
-
-        # Джиттер и шиммер
-        jitter_shimmer1 = extract_jitter_shimmer(s1, SAMPLE_RATE)
-        jitter_shimmer2 = extract_jitter_shimmer(s2, SAMPLE_RATE)
-        # Специальное сравнение для джиттера/шиммера - чем ближе, тем выше сходство
-        js_diff = np.abs(jitter_shimmer1 - jitter_shimmer2)
-        js_sim = 1.0 - np.mean(np.minimum(js_diff / np.array([2.0, 5.0, 2.0, 3.0, 5.0, 3.0, 5.0, 5.0]), 1.0))
-        sims["jitter_shimmer"].append(js_sim)
-
-        # YAMNet перцептивные признаки
-        yamnet1 = extract_yamnet(s1, SAMPLE_RATE)
-        yamnet2 = extract_yamnet(s2, SAMPLE_RATE)
-        sims["yamnet"].append(cosine_similarity(yamnet1, yamnet2))
-
-        # === НОВОЕ: Извлечение и сравнение голосовых биометрических характеристик для сегментов ===
-        segment_features1 = voice_features.extract_all_features(s1)
-        segment_features2 = voice_features.extract_all_features(s2)
-
-        # Сравнение биометрических векторов
-        segment_comparison = voice_features.compare_voice_features(segment_features1, segment_features2)
-        sims["voice_features"].append(segment_comparison["overall"])
-
-        # === НОВОЕ: Извлечение и сравнение формантных треков для сегментов ===
-        segment_formant_tracks1 = formant_tracker.track_formants(s1)
-        segment_formant_tracks2 = formant_tracker.track_formants(s2)
-
-        # Статистика и сравнение формант для сегментов
-        segment_formant_stats1 = formant_tracker.compute_formant_statistics(segment_formant_tracks1)
-        segment_formant_stats2 = formant_tracker.compute_formant_statistics(segment_formant_tracks2)
-
-        segment_formant_comparison = formant_tracker.compare_formant_profiles(
-            segment_formant_stats1, segment_formant_stats2)
-
-        if "overall" in segment_formant_comparison:
-            sims["formant_tracker"].append(segment_formant_comparison["overall"])
-
-    # === НОВОЕ: Добавляем результаты из общего сравнения полных файлов ===
-    # Эти результаты важны для глобального анализа речевой идентичности
-    if "overall" in formant_comparison:
-        sims["formant_tracker"].append(formant_comparison["overall"])
-
-    if "overall" in voice_features_comparison:
-        sims["voice_features"].append(voice_features_comparison["overall"])
-
-    # Формирование итогового отчета
-    summary = synthetic_warning + modification_warning
-    weighted_total = 0
-    weighted_score = 0
-
-    # Таблица результатов
-    summary += "| Метрика | Медиана | 95% CI | >0.90 | Вес |\n"
-    summary += "| ------- | ------- | ------ | ----- | --- |\n"
-
-    all_medians = []  # Для оценки согласованности результатов
-
-    for key, values in sims.items():
-        if not values:  # Пропускаем, если нет значений
-            continue
-
-        # Статистика по метрике
-        med = np.median(values)
-        all_medians.append(med)
-        count_high = sum(1 for x in values if x > 0.9)
-        ci_low, ci_high = calculate_confidence_interval(values)
-
-        # Определение уверенности по ширине доверительного интервала
-        ci_width = ci_high - ci_low
-        confidence = "🟢" if ci_width < 0.1 else "🟡" if ci_width < 0.2 else "🔴"
-
-        # Метка для медианы
-        label = "🟢" if med > 0.85 else "🟡" if med > 0.7 else "🔴"
-
-        # Весовой коэффициент
-        weight = weights.get(key, 1.0)
-        weighted_total += weight
-        weighted_score += weight * med
-
-        # Добавление в таблицу
-        summary += f"| {label} {key.upper()} | {med:.3f} | {ci_low:.2f}-{ci_high:.2f} {confidence} | {count_high}/{len(values)} | {weight} |\n"
-
-    # Расчет итоговой оценки
-    final_score = weighted_score / weighted_total if weighted_total > 0 else 0
-
-    # Определение согласованности результатов разных методов
-    consistency = np.std(all_medians)
-    consistency_label = "🟢" if consistency < 0.05 else "🟡" if consistency < 0.15 else "🔴"
-
-    # Доверительный интервал для итоговой оценки
-    confidence_range = f"{final_score:.2f} ± {consistency:.2f}"
-
-    # === НОВОЕ: Добавление информации о вокальном тракте ===
-    if vocal_tract_estimate1 and vocal_tract_estimate2 and "mean" in vocal_tract_estimate1 and "mean" in vocal_tract_estimate2:
-        vtl1_mean = vocal_tract_estimate1["mean"]
-        vtl2_mean = vocal_tract_estimate2["mean"]
-        vtl_diff = abs(vtl1_mean - vtl2_mean)
-
-        vtl_assessment = (
-            f"\n**Анализ длины голосового тракта:**\n"
-            f"Файл 1: {vtl1_mean:.1f} см\n"
-            f"Файл 2: {vtl2_mean:.1f} см\n"
-            f"Разница: {vtl_diff:.2f} см\n"
+    audio = np.asarray(signal, dtype=np.float32)
+    if audio.size == 0:
+        raise AudioValidationError(f'Файл {path.name} пуст.')
+    if not np.all(np.isfinite(audio)):
+        raise AudioValidationError(
+            f'Файл {path.name} содержит некорректные значения.'
         )
 
-        vtl_conclusion = ""
-        if vtl_diff < 0.5:
-            vtl_conclusion = "✅ Длины голосовых трактов очень близки, что характерно для одного человека"
-        elif vtl_diff < 1.0:
-            vtl_conclusion = "🟡 Небольшая разница в длине голосовых трактов, возможно один человек с разной артикуляцией"
-        else:
-            vtl_conclusion = "❌ Значительная разница в длине голосовых трактов, характерная для разных людей"
+    audio = audio - float(np.mean(audio))
+    peak = float(np.max(np.abs(audio)))
+    if peak > 0.0:
+        audio = audio / peak
+    return audio.astype(np.float32, copy=False)
 
-        summary += vtl_assessment + vtl_conclusion + "\n\n"
 
-    # Добавляем итоговую оценку в отчет
-    summary += f"\n**Итоговая оценка: {final_score:.3f}** (консистентность методов: {consistency_label} ±{consistency:.2f})\n"
-    summary += f"**Доверительный интервал: {confidence_range}**\n\n"
+def _analyze_quality(audio: np.ndarray) -> AudioQuality:
+    return analyze_audio_quality(
+        audio,
+        SAMPLE_RATE,
+        min_duration_seconds=settings.min_audio_duration,
+        min_speech_seconds=settings.min_speech_seconds,
+        min_speech_ratio=settings.min_speech_ratio,
+        max_clipping_ratio=settings.max_clipping_ratio,
+    )
 
-    # Формирование вердикта с учетом консистентности методов и наличия синтетической речи
-    verdict = ""
 
-    # Проверка на синтетический голос перед вынесением вердикта
-    if is_synthetic:
-        verdict = "⚠️ РЕЗУЛЬТАТ НЕНАДЕЖЕН: Обнаружены признаки синтетического голоса (deepfake)"
-        if final_score >= 0.85:
-            verdict += "\nПри игнорировании признаков deepfake сходство высокое, но не может быть использовано как доказательство"
-    else:
-        if final_score >= 0.95 and consistency < 0.1:
-            verdict = "✅ ЗАКЛЮЧЕНИЕ ЭКСПЕРТА: Голоса с высочайшей вероятностью принадлежат одному и тому же человеку"
-        elif final_score >= 0.88 and consistency < 0.12:
-            verdict = "✅ ЗАКЛЮЧЕНИЕ ЭКСПЕРТА: Голоса с высокой вероятностью принадлежат одному и тому же человеку"
-        elif final_score >= 0.80 and consistency < 0.15:
-            verdict = "🟡 ЗАКЛЮЧЕНИЕ ЭКСПЕРТА: Голоса, вероятно, принадлежат одному человеку, но требуются дополнительные подтверждения"
-        elif final_score >= 0.70:
-            verdict = "⚠️ ЗАКЛЮЧЕНИЕ ЭКСПЕРТА: Имеется некоторое сходство голосов, но недостаточно для надежного вывода"
-        else:
-            verdict = "❌ ЗАКЛЮЧЕНИЕ ЭКСПЕРТА: Голоса с высокой вероятностью принадлежат разным людям"
+def _validate_quality(
+    first: AudioQuality,
+    second: AudioQuality,
+) -> None:
+    issues: list[str] = []
+    if first.issues:
+        issues.append('Файл 1: ' + ' '.join(first.issues))
+    if second.issues:
+        issues.append('Файл 2: ' + ' '.join(second.issues))
+    if issues:
+        raise AudioValidationError('\n\n'.join(issues))
 
-    # Добавляем пояснения к вердикту
-    if mod1 or mod2:
-        verdict += "\n⚠️ ВНИМАНИЕ: Обнаружены признаки искусственной модификации голоса"
 
-    if consistency > 0.15:
-        verdict += "\n⚠️ ВНИМАНИЕ: Высокая несогласованность между методами анализа, результаты могут быть ненадежными"
+def _extract_segments(audio: np.ndarray) -> list[np.ndarray]:
+    return extract_speech_segments(
+        audio,
+        SAMPLE_RATE,
+        segment_seconds=settings.segment_duration,
+        max_segments=settings.segment_count,
+        min_segment_seconds=settings.min_segment_duration,
+    )
 
-    return verdict, summary
+
+def _run_antispoofing(
+    first_audio: np.ndarray,
+    second_audio: np.ndarray,
+) -> str:
+    if not settings.antispoofing_enabled:
+        return 'отключён до подключения валидированной модели'
+
+    detector = get_antispoofing_detector()
+    try:
+        first = detector.detect(first_audio, SAMPLE_RATE)
+        second = detector.detect(second_audio, SAMPLE_RATE)
+    except ModelUnavailableError as exc:
+        return f'недоступен: {exc}'
+
+    return (
+        'сырые model score: '
+        f'файл 1 = {first["spoof_score"]:.3f}, '
+        f'файл 2 = {second["spoof_score"]:.3f}. '
+        'Это не калиброванные вероятности.'
+    )
+
+
+def _build_report(
+    *,
+    first_quality: AudioQuality,
+    second_quality: AudioQuality,
+    first_segment_count: int,
+    second_segment_count: int,
+    similarity: SimilaritySummary,
+    anti_spoofing: str,
+) -> str:
+    return '\n'.join(
+        [
+            '### Качество входных данных',
+            '',
+            '| Показатель | Файл 1 | Файл 2 |',
+            '| --- | ---: | ---: |',
+            (
+                '| Длительность | '
+                f'{first_quality.duration_seconds:.1f} с | '
+                f'{second_quality.duration_seconds:.1f} с |'
+            ),
+            (
+                '| Обнаруженная речь | '
+                f'{first_quality.speech_seconds:.1f} с | '
+                f'{second_quality.speech_seconds:.1f} с |'
+            ),
+            (
+                '| Доля речи | '
+                f'{first_quality.speech_ratio:.0%} | '
+                f'{second_quality.speech_ratio:.0%} |'
+            ),
+            (
+                '| Клиппинг | '
+                f'{first_quality.clipping_ratio:.2%} | '
+                f'{second_quality.clipping_ratio:.2%} |'
+            ),
+            (
+                '| Речевые сегменты | '
+                f'{first_segment_count} | {second_segment_count} |'
+            ),
+            '',
+            '### Speaker embedding score',
+            '',
+            '| Метрика | Значение |',
+            '| --- | ---: |',
+            f'| ECAPA cosine по центроидам | '
+            f'{similarity.centroid_score:.4f} |',
+            f'| Медиана попарных score | '
+            f'{similarity.median_pair_score:.4f} |',
+            f'| Среднее попарных score | '
+            f'{similarity.mean_pair_score:.4f} |',
+            f'| Стандартное отклонение score | '
+            f'{similarity.standard_deviation:.4f} |',
+            f'| Минимум / максимум | '
+            f'{similarity.minimum:.4f} / {similarity.maximum:.4f} |',
+            f'| Число сравнений сегментов | '
+            f'{similarity.pair_count} |',
+            '',
+            '### Anti-spoofing',
+            '',
+            anti_spoofing,
+            '',
+            '### Интерпретация',
+            '',
+            (
+                'Cosine score показывает геометрическую близость '
+                'эмбеддингов ECAPA. Он не является процентом '
+                'совпадения и не имеет универсального порога.'
+            ),
+            '',
+            _DISCLAIMER,
+        ]
+    )
+
+
+__all__ = ['compare_voices_dual']

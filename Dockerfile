@@ -1,37 +1,51 @@
-# Dockerfile for voice_match forensic voice comparison system
-FROM python:3.9-slim
+FROM python:3.12-slim AS builder
 
-# Установка системных зависимостей
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    libsndfile1 \
-    ffmpeg \
-    git \
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH='/app/.venv/bin:/usr/local/bin:/usr/bin:/bin'
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Создание рабочей директории
+COPY --from=ghcr.io/astral-sh/uv:0.11.16 \
+    /uv /uvx /usr/local/bin/
+
 WORKDIR /app
 
-# Копирование файлов зависимостей
-COPY requirements.txt .
+COPY pyproject.toml uv.lock README.md LICENSE ./
+RUN uv sync --no-dev --no-install-project
 
-# Установка Python зависимостей
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+COPY src ./src
+RUN uv sync --no-dev
 
-# Копирование всего проекта
-COPY . .
 
-# Создание директорий для логов и моделей
-RUN mkdir -p logs pretrained_models
+FROM python:3.12-slim AS runtime
 
-# Порт для Gradio
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH='/app/.venv/bin:/usr/local/bin:/usr/bin:/bin'
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        ffmpeg \
+        libsndfile1 \
+        passwd \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 10001 appuser
+
+WORKDIR /app
+
+COPY --from=builder --chown=appuser:appuser /app /app
+
+USER appuser
+
 EXPOSE 7860
 
-# Переменные окружения
-ENV GRADIO_SERVER_NAME=0.0.0.0
-ENV GRADIO_SERVER_PORT=7860
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s \
+    --retries=3 \
+    CMD python -c "import urllib.request; \
+urllib.request.urlopen('http://127.0.0.1:7860/', timeout=3)"
 
-# Запуск приложения
-CMD ["python", "main.py"]
+CMD ["voice-match"]

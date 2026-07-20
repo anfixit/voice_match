@@ -1,22 +1,27 @@
-version: '3.8'
-
 services:
-  voice_match:
-    build: .
-    container_name: voice_match
-    ports:
-      - "${PORT:-7860}:7860"
-    volumes:
-      - ./logs:/app/logs
-      - ./pretrained_models:/app/pretrained_models
-      - ./uploads:/app/uploads
+  voice-match:
+    build:
+      context: .
     environment:
-      - GRADIO_SERVER_NAME=0.0.0.0
-      - GRADIO_SERVER_PORT=7860
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      VM_GRADIO_HOST: 0.0.0.0
+      VM_GRADIO_PORT: 7860
+      VM_GRADIO_AUTH_USER: ${VM_GRADIO_AUTH_USER:?set in .env}
+      VM_GRADIO_AUTH_PASSWORD: ${VM_GRADIO_AUTH_PASSWORD:?set in .env}
+      VM_USE_GPU: 'false'
+    ports:
+      - 127.0.0.1:7860:7860
+    volumes:
+      - model-cache:/app/pretrained_models
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+      - /app/logs:size=64m,mode=0700
+      - /app/tmp:size=512m,mode=0700
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:7860')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+
+volumes:
+  model-cache:

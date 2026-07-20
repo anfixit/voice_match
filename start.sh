@@ -1,44 +1,10 @@
-#!/bin/bash
-# Скрипт запуска voice_match для Unix/Linux/macOS
+#!/usr/bin/env sh
+set -eu
 
-set -e
-
-echo "========================================="
-echo "    Voice Match - Forensic Voice Comparison"
-echo "========================================="
-echo ""
-
-# Проверка наличия Python
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 не установлен!"
+if ! command -v uv >/dev/null 2>&1; then
+    printf '%s\n' 'uv не установлен: https://docs.astral.sh/uv/' >&2
     exit 1
 fi
 
-# Проверка версии Python
-PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-echo "✅ Python $PYTHON_VERSION обнаружен"
-
-# Создание виртуального окружения, если не существует
-if [ ! -d "venv" ]; then
-    echo "📦 Создание виртуального окружения..."
-    python3 -m venv venv
-fi
-
-# Активация виртуального окружения
-echo "🔧 Активация виртуального окружения..."
-source venv/bin/activate
-
-# Установка зависимостей
-echo "📥 Установка зависимостей..."
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# Создание необходимых директорий
-mkdir -p logs pretrained_models uploads
-
-# Запуск приложения
-echo ""
-echo "🚀 Запуск приложения..."
-echo "📍 Интерфейс будет доступен по адресу: http://localhost:7860"
-echo ""
-python main.py
+uv sync --frozen
+exec uv run voice-match

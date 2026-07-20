@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.11.16
+          python-version: '3.12'
+          enable-cache: true
+
+      - name: Refresh lock and install dependencies
+        run: |
+          uv lock
+          uv sync --extra dev
+
+      - name: Lint
+        run: |
+          set -o pipefail
+          uv run ruff check src tests 2>&1 | tee ruff.log
+
+      - name: Upload lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ruff-diagnostics
+          path: ruff.log
+          retention-days: 1
+
+      - name: Type check
+        run: uv run mypy src
+
+      - name: Tests
+        run: uv run pytest
+
+      - name: Audit dependencies
+        run: |
+          set -o pipefail
+          uv audit --frozen 2>&1 | tee audit.log
+
+      - name: Upload audit diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: audit-diagnostics
+          path: audit.log
+          retention-days: 1
+
+      - name: Upload refreshed lockfile
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: refreshed-lockfile
+          path: uv.lock
+          retention-days: 1
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Build image
+        run: |
+          set -o pipefail
+          docker build --progress=plain --tag voice-match:ci . \
+            2>&1 | tee docker-build.log
+
+      - name: Upload Docker diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: docker-diagnostics
+          path: docker-build.log
+          retention-days: 1

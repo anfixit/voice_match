@@ -1,27 +1,39 @@
+"""Единая настройка логирования."""
+
 import logging
-import os
+import sys
 
-from logging.handlers import RotatingFileHandler
+from voice_match.config import settings
 
-LOG_DIR = "logs"
-LOG_FILE = os.path.join(LOG_DIR, "app.log")
-LOG_LEVEL = logging.INFO
+_LOG_FORMAT = (
+    '%(asctime)s | %(levelname)-8s | '
+    '%(name)s:%(lineno)d | %(message)s'
+)
+
 
 def setup_logger(name: str) -> logging.Logger:
-    os.makedirs(LOG_DIR, exist_ok=True)
+    """Настроить логгер с консольным и файловым выводом."""
+    settings.logs_dir.mkdir(parents=True, exist_ok=True)
 
     logger = logging.getLogger(name)
-    logger.setLevel(LOG_LEVEL)
+    logger.setLevel(settings.log_level.upper())
+    logger.propagate = False
+    if logger.handlers:
+        return logger
 
-    if not logger.handlers:
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
-        logger.addHandler(console_handler)
+    formatter = logging.Formatter(_LOG_FORMAT)
 
-        file_handler = RotatingFileHandler(LOG_FILE, maxBytes=1_000_000, backupCount=5, encoding="utf-8")
-        file_handler.setFormatter(logging.Formatter(
-            "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        ))
-        logger.addHandler(file_handler)
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(settings.log_level.upper())
+    console.setFormatter(formatter)
 
+    file_handler = logging.FileHandler(
+        settings.logs_dir / 'voice_match.log',
+        encoding='utf-8',
+    )
+    file_handler.setLevel(settings.log_level.upper())
+    file_handler.setFormatter(formatter)
+
+    logger.addHandler(console)
+    logger.addHandler(file_handler)
     return logger

@@ -1,108 +1,54 @@
 # Changelog
 
-Все важные изменения в проекте voice_match документируются в этом файле.
-
-Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
-и этот проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
-
----
+Формат основан на Keep a Changelog. Проект использует Semantic
+Versioning.
 
 ## [Unreleased]
 
-### Добавлено
-- 🚀 **Инфраструктура автоматического развертывания**
-  - GitHub Actions workflow для CI/CD (`.github/workflows/deploy.yml`)
-  - Production конфигурация Docker Compose (`docker-compose.prod.yml`)
-  - Nginx reverse proxy конфигурация с SSL поддержкой (`nginx/nginx.conf`)
-  - Автоматический скрипт настройки сервера (`server-setup.sh`)
-  - Подробное руководство по развертыванию (`DEPLOYMENT.md`)
-  - Инструкция по настройке GitHub Secrets (`GITHUB_SECRETS_SETUP.md`)
-
-- 📦 **Docker поддержка**
-  - Dockerfile для контейнеризации приложения
-  - Docker Compose конфигурация для локальной разработки
-  - Production-ready конфигурация с Nginx
-  - Поддержка SSL через Let's Encrypt
-
-- 🔧 **Исправления критических ошибок**
-  - Создан отсутствующий модуль `models/formant_tracker.py`
-  - Исправлена вложенность функции `get_resemblyzer()` в `models/resemblyzer.py`
-  - Добавлен отсутствующий импорт `logging` в `app/interface.py`
-  - Исправлен путь к `weights.json` в `app/voice_compare_dual.py`
-  - Создан `models/__init__.py` для корректной работы пакета
-
-- 📝 **Документация**
-  - Обновлен README.md с инструкциями по развертыванию
-  - Добавлен CHANGELOG.md для отслеживания изменений
-  - Создано детальное руководство DEPLOYMENT.md
-  - Добавлена инструкция по настройке GitHub Secrets
-
-- 🗂️ **Структура проекта**
-  - Создан `models/__init__.py` для правильной инициализации пакета
-  - Созданы заглушки для пустых модулей:
-    - `models/bayesian_scoring.py`
-    - `models/plda_scoring.py`
-    - `models/formant_comparison.py`
-    - `models/formant_visualization.py`
-    - `models/modification_detector.py`
-    - `models/nasal_analyzer.py`
-    - `models/temporal_analyzer.py`
-
-- ⚙️ **Скрипты автоматизации**
-  - `start.sh` - скрипт запуска для Unix/Linux/macOS
-  - `start.bat` - скрипт запуска для Windows
-  - `server-setup.sh` - автоматическая настройка production сервера
-  - `.env.example` - шаблон конфигурации окружения
-
 ### Изменено
-- 📝 README.md обновлен с разделом развертывания
-- 🔒 .gitignore обновлен для исключения временных файлов и логов
-- 🐋 Docker конфигурация оптимизирована для production
 
-### Исправлено
-- ❌ ModuleNotFoundError: models.formant_tracker
-- ❌ Неправильная вложенность функции get_resemblyzer()
-- ❌ Отсутствие импорта logging в interface.py
-- ❌ Неверный относительный путь к weights.json
-- ❌ Отсутствие models/__init__.py
-- ❌ 7 пустых файлов моделей (созданы базовые реализации)
+- Активное ядро заменено на прозрачный ECAPA baseline.
+- Результат теперь показывает raw cosine score без псевдовероятности.
+- Добавлен quality gate для длительности, речи, клиппинга и RMS.
+- Речевые сегменты выделяются через WebRTC VAD.
+- Конфигурация переведена на единый `pydantic-settings` источник.
+- Gradio по умолчанию слушает только loopback.
+- Для сетевого режима обязательна аутентификация.
+- Docker переведён на Python 3.12, uv и непривилегированного
+  пользователя.
+- README полностью переписан под фактическое поведение проекта.
 
----
+### Удалено
+
+- Случайно инициализированный anti-spoofing detector.
+- Псевдо-PLDA, псевдо-LLR и псевдобайесовская вероятность.
+- Ручное смешивание несопоставимых акустических и ML-метрик.
+- YAMNet, старый X-vector wrapper, Resemblyzer и формантный ансамбль
+  из активного pipeline.
+- Дублирующий `report_legacy.py`.
+- Пустые модули и отслеживаемая `.idea`.
+- Устаревший `requirements.txt` и `weights.json`.
+
+### Безопасность
+
+- Anti-spoofing теперь работает только с явно предоставленной
+  TorchScript-моделью и завершает проверку безопасно без весов.
+- Временные WAV удаляются после каждого запроса.
+- Удалено логирование полных путей пользовательских файлов.
+- Контейнер использует read-only filesystem, `cap_drop: ALL` и
+  `no-new-privileges`.
+
+### Тесты
+
+- Добавлен 31 unit-тест.
+- Минимальное покрытие установлено на 70 процентов.
+- CI запускает ruff, mypy, pytest, `uv audit` и Docker build.
+
+## [0.2.0]
+
+- Переход на src-layout, Python 3.12, pyproject.toml и uv.
+- Первичная реорганизация модулей приложения.
 
 ## [0.1.0] - 2025-01-17
 
-### Добавлено
-- 🎙️ Базовая функциональность сравнения голосов
-- 🧠 Интеграция моделей машинного обучения:
-  - ECAPA-TDNN
-  - X-vector
-  - Resemblyzer
-  - YAMNet
-- 📊 Формантный анализ голоса
-- 🎯 Взвешенная оценка по нескольким моделям
-- 🖥️ Gradio веб-интерфейс
-- 📈 Визуализация: спектрограммы, энергия, pitch, MFCC
-- 📋 Детальное логирование анализа
-- ⚙️ Конфигурация весов моделей через weights.json
-
-### Документация
-- 📖 Подробный README.md на русском языке
-- 📝 Руководство по использованию
-- 🔒 Политика конфиденциальности
-- ⚖️ Apache 2.0 лицензия
-
----
-
-## Типы изменений
-
-- `Добавлено` - новый функционал
-- `Изменено` - изменения в существующем функционале
-- `Устарело` - функционал, который скоро будет удален
-- `Удалено` - удаленный функционал
-- `Исправлено` - исправление багов
-- `Безопасность` - изменения, связанные с безопасностью
-
----
-
-[Unreleased]: https://github.com/anfixit/voice_match/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/anfixit/voice_match/releases/tag/v0.1.0
+- Первая публичная исследовательская версия.
