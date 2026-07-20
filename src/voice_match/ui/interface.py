@@ -1,6 +1,7 @@
 """Gradio-интерфейс voice_match."""
 
 from pathlib import Path
+from typing import Any, Protocol, cast
 
 import librosa
 import matplotlib.pyplot as plt
@@ -14,6 +15,20 @@ from voice_match.services.comparison import compare_voices_dual
 from voice_match.services.preprocessing import convert_audio_to_wav
 
 log = setup_logger('interface')
+
+
+class _Clickable(Protocol):
+    """Минимальный контракт события Gradio Button."""
+
+    def click(
+        self,
+        fn: Any = ...,
+        inputs: Any = ...,
+        outputs: Any = ...,
+        **kwargs: Any,
+    ) -> Any:
+        """Зарегистрировать обработчик нажатия."""
+        ...
 
 
 def visualize_audio(
@@ -156,8 +171,14 @@ def launch_ui() -> None:
             second_file = gr.Audio(label='Запись 2', type='filepath')
 
         with gr.Row():
-            compare_button = gr.Button('Сравнить', variant='primary')
-            clear_button = gr.Button('Очистить')
+            compare_button = cast(
+                _Clickable,
+                gr.Button('Сравнить', variant='primary'),
+            )
+            clear_button = cast(
+                _Clickable,
+                gr.Button('Очистить'),
+            )
 
         result = gr.Textbox(label='Результат')
         report = gr.Markdown(label='Детали анализа')
