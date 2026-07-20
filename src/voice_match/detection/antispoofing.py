@@ -1,243 +1,118 @@
-import os
+"""Fail-closed интерфейс anti-spoofing модели."""
 
 from functools import lru_cache
+from pathlib import Path
+from typing import TypedDict
 
 import librosa
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as func
 
-from voice_match.constants import (
-    SAMPLE_RATE,
-)
+from voice_match.config import settings
+from voice_match.constants import SAMPLE_RATE
+from voice_match.exceptions import ModelUnavailableError
 from voice_match.log import setup_logger
 
-log = setup_logger("antispoofing")
+log = setup_logger('antispoofing')
 
 
-class SincConv(nn.Module):
-    """Sinc-based convolution for antispoofing detection"""
+class AntiSpoofingResult(TypedDict):
+    """Некалиброванный score валидированной модели."""
 
-    def __init__(self, device='cpu'):
-        super().__init__()
-        self.device = device
-        # Фильтр 1D свертки
-        self.conv = nn.Conv1d(
-            in_channels=1,
-            out_channels=64,
-            kernel_size=1024,
-            stride=256,
-            padding=0,
-            bias=False
-        )
-
-        # GRU слой для обработки последовательностей
-        self.gru = nn.GRU(
-            input_size=64,
-            hidden_size=64,
-            num_layers=2,
-            batch_first=True,
-            bidirectional=True
-        )
-
-        # Полносвязный слой
-        self.fc = nn.Linear(128, 64)
-        self.fc_out = nn.Linear(64, 2)  # [real, spoof]
-
-        # Инициализация весов sinc-фильтров
-        self._init_sinc_weights()
-
-    def _init_sinc_weights(self):
-        """Инициализация sinc фильтров на разных частотах"""
-        weights = torch.zeros(64, 1, 1024)
-
-        # Создаем sinc фильтры на разных частотах
-        for i in range(64):
-            freq = 50 + (i * 100)  # 50-6450 Hz
-            t = torch.arange(0, 1024) - 512
-            t = t.float() / 16000  # sample rate
-
-            # sinc фильтр
-            y = torch.sin(2 * np.pi * freq * t) / (np.pi * t)
-            y[512] = 2 * freq / 16000  # центральный элемент
-
-            # Применение окна Хэмминга
-            window = 0.54 - 0.46 * torch.cos(2 * np.pi * torch.arange(0, 1024) / 1024)
-            y = y * window
-
-            # Нормализация
-            y = y / torch.sqrt(torch.sum(y ** 2))
-
-            weights[i, 0, :] = y
-
-        self.conv.weight.data = weights
-        self.conv.weight.requires_grad = False  # замораживаем sinc-веса
-
-    def forward(self, x):
-        # x: [batch, time]
-        if len(x.shape) == 2:
-            x = x.unsqueeze(1)  # [batch, 1, time]
-
-        # 1D свертка с sinc фильтрами
-        x = func.relu(self.conv(x))  # [batch, 64, time/256]
-
-        # Подготовка для GRU
-        x = x.transpose(1, 2)  # [batch, time/256, 64]
-
-        # GRU слой
-        x, _ = self.gru(x)  # [batch, time/256, 128]
-
-        # Пулинг по временному измерению
-        x = torch.mean(x, dim=1)  # [batch, 128]
-
-        # Полносвязный слой
-        x = func.relu(self.fc(x))
-        x = self.fc_out(x)
-
-        return x
+    spoof_score: float
+    segment_count: int
+    model_name: str
 
 
 class AntiSpoofingDetector:
-    """Детектор подделок голоса и синтетической речи"""
+    """Загружает только явно предоставленную обученную модель.
 
-    def __init__(self):
-        self.model = None
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    Случайно инициализированная сеть никогда не используется.
+    Текущий репозиторий не поставляет валидированные веса, поэтому
+    функция по умолчанию недоступна и завершается безопасно.
+    """
 
-    def load_model(self):
-        """Загружает или инициализирует модель"""
-        model_path = os.path.join("pretrained_models", "antispoofing", "model.pth")
+    def __init__(self, model_path: Path | None = None) -> None:
+        self._model_path = model_path or (
+            settings.models_dir / 'antispoofing' / 'model.pt'
+        )
+        self._model: torch.jit.ScriptModule | None = None
 
-        # Создаем модель
-        self.model = SincConv(device=self.device).to(self.device)
+    def load(self) -> None:
+        """Загрузить TorchScript-модель anti-spoofing."""
+        if self._model is not None:
+            return
+        if not self._model_path.is_file():
+            raise ModelUnavailableError(
+                'Anti-spoofing отключён: валидированные веса не '
+                f'найдены в {self._model_path}.'
+            )
 
-        # Проверяем наличие предобученной модели
-        if os.path.exists(model_path):
-            try:
-                self.model.load_state_dict(torch.load(model_path, map_location=self.device))
-                self.model.eval()
-                log.info("Загружена предобученная модель для обнаружения подделок")
-            except Exception as e:
-                log.warning('Не удалось загрузить предобученную модель: %s', e)
-                # Дополнительная инициализация, если модель не загружена
-                self._initialize_pretrained_weights()
-        else:
-            log.warning("Предобученная модель не найдена, используется базовая инициализация")
-            # Инициализация базовыми весами
-            self._initialize_pretrained_weights()
+        try:
+            self._model = torch.jit.load(
+                str(self._model_path),
+                map_location='cpu',
+            )
+            self._model.eval()
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise ModelUnavailableError(
+                'Не удалось загрузить валидированную anti-spoofing '
+                'модель.'
+            ) from exc
 
-        # Установка режима оценки
-        self.model.eval()
+        log.info('Anti-spoofing модель загружена: %s', self._model_path)
 
-    def _initialize_pretrained_weights(self):
-        """Инициализирует веса предустановленными значениями"""
-        # В реальном приложении здесь можно было бы загрузить веса из другого источника
-        # или использовать предустановленные значения для ключевых слоев
-        pass
+    def detect(
+        self,
+        signal: np.ndarray,
+        sample_rate: int,
+    ) -> AntiSpoofingResult:
+        """Получить сырой model score без вероятностных заявлений."""
+        self.load()
+        model = self._model
+        if model is None:
+            raise ModelUnavailableError(
+                'Anti-spoofing модель не инициализирована.'
+            )
 
-    def detect(self, y: np.ndarray, sr: int) -> dict[str, float]:
-        """
-        Обнаруживает признаки синтетической или поддельной речи.
+        audio = np.asarray(signal, dtype=np.float32).reshape(-1)
+        if sample_rate != SAMPLE_RATE:
+            audio = librosa.resample(
+                audio,
+                orig_sr=sample_rate,
+                target_sr=SAMPLE_RATE,
+            )
 
-        Args:
-            y: Аудиосигнал
-            sr: Частота дискретизации
+        segment_samples = 4 * SAMPLE_RATE
+        if audio.size < segment_samples:
+            audio = np.pad(audio, (0, segment_samples - audio.size))
 
-        Returns:
-            Словарь с вероятностями различных типов подделок
-        """
-        if self.model is None:
-            self.load_model()
+        scores: list[float] = []
+        for start in range(0, audio.size - segment_samples + 1,
+                           segment_samples):
+            segment = torch.from_numpy(
+                audio[start:start + segment_samples],
+            ).unsqueeze(0)
+            with torch.inference_mode():
+                output = model(segment)
+            score = float(torch.sigmoid(output.reshape(-1)[0]).item())
+            scores.append(score)
 
-        # Проверка наличия речи
-        if len(y) < sr:
-            return {
-                "is_synthetic": 0.0,
-                "is_real": 1.0,
-                "confidence": 0.0
-            }
-
-        # Ресемплирование до 16kHz
-        if sr != SAMPLE_RATE:
-            y = librosa.resample(y, orig_sr=sr, target_sr=SAMPLE_RATE)
-
-        # Нормализация
-        y = librosa.util.normalize(y)
-
-        # Разделение на сегменты по 4 секунды
-        segment_len = 4 * SAMPLE_RATE
-
-        # Если сигнал короче 4 секунд, дополняем нулями
-        if len(y) < segment_len:
-            y = np.pad(y, (0, segment_len - len(y)))
-            segments = [y]
-        else:
-            # Разбиваем на сегменты с перекрытием 50%
-            hop = segment_len // 2
-            segments = []
-            for i in range(0, len(y) - segment_len + 1, hop):
-                segments.append(y[i:i + segment_len])
-
-        # Ограничиваем количество сегментов
-        if len(segments) > 10:
-            # Выбираем равномерно распределенные сегменты
-            indices = np.linspace(0, len(segments) - 1, 10, dtype=int)
-            segments = [segments[i] for i in indices]
-
-        # Обработка каждого сегмента
-        synthetic_probs = []
-
-        with torch.no_grad():
-            for segment in segments:
-                # Преобразование в тензор
-                x = torch.FloatTensor(segment).unsqueeze(0).to(self.device)  # [1, samples]
-
-                # Предсказание
-                output = self.model(x)
-
-                # Применяем softmax для получения вероятностей
-                probs = func.softmax(output, dim=1)
-
-                # Вероятность синтетической речи (1 класс)
-                synthetic_prob = probs[0, 1].item()
-                synthetic_probs.append(synthetic_prob)
-
-        # Статистика по всем сегментам
-        mean_prob = np.mean(synthetic_probs)
-        std_prob = np.std(synthetic_probs)
-        max_prob = np.max(synthetic_probs)
-
-        # Определение надежности обнаружения
-        confidence = 1.0 - std_prob
-
-        # Результат
-        result = {
-            "is_synthetic": mean_prob,
-            "is_real": 1.0 - mean_prob,
-            "max_probability": max_prob,
-            "confidence": confidence
-        }
-
-        # Подробная классификация
-        if mean_prob > 0.8:
-            result["likely_type"] = "TTS/Deepfake"
-        elif mean_prob > 0.6:
-            result["likely_type"] = "Voice Conversion/Manipulation"
-        elif mean_prob > 0.4:
-            result["likely_type"] = "Possible Audio Editing"
-
-        return result
+        return AntiSpoofingResult(
+            spoof_score=float(np.mean(scores)),
+            segment_count=len(scores),
+            model_name=self._model_path.stem,
+        )
 
 
 @lru_cache(maxsize=1)
-def get_antispoofing_detector():
-    """
-    Загружает и возвращает детектор подделок голоса.
+def get_antispoofing_detector() -> AntiSpoofingDetector:
+    """Вернуть общий fail-closed anti-spoofing detector."""
+    return AntiSpoofingDetector()
 
-    Returns:
-        Экземпляр AntiSpoofingDetector
-    """
-    detector = AntiSpoofingDetector()
-    detector.load_model()
-    return detector
+
+__all__ = [
+    'AntiSpoofingDetector',
+    'AntiSpoofingResult',
+    'get_antispoofing_detector',
+]

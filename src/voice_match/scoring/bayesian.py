@@ -1,37 +1,20 @@
-"""
-Байесовский скоринг для оценки вероятности совпадения голосов.
-TODO: Реализовать байесовский подход к оценке сходства голосов.
-"""
+"""Контракт для будущей вероятностной калибровки."""
 
+from collections.abc import Mapping
 
-import numpy as np
-
-from voice_match.log import setup_logger
-
-log = setup_logger("bayesian_scoring")
+from voice_match.exceptions import UncalibratedScoringError
 
 
 def compute_bayesian_score(
-    similarity_scores: dict[str, float],
-    priors: dict[str, float] | None = None
+    similarity_scores: Mapping[str, float],
+    priors: Mapping[str, float] | None = None,
 ) -> dict[str, float]:
-    """
-    Вычисляет байесовскую оценку вероятности совпадения голосов.
+    """Запретить выдачу среднего score за posterior probability."""
+    del similarity_scores, priors
+    raise UncalibratedScoringError(
+        'Вероятностная калибровка не обучена. Для posterior '
+        'probability нужны размеченные target/non-target trials.'
+    )
 
-    Args:
-        similarity_scores: Словарь с оценками сходства от разных моделей
-        priors: Априорные вероятности (опционально)
 
-    Returns:
-        Словарь с байесовскими оценками
-    """
-    # Заглушка - пока возвращаем среднее
-    log.warning("Байесовский скоринг еще не реализован, используется среднее значение")
-
-    scores = list(similarity_scores.values())
-    mean_score = np.mean(scores) if scores else 0.5
-
-    return {
-        "posterior_probability": mean_score,
-        "confidence": np.std(scores) if len(scores) > 1 else 0.0
-    }
+__all__ = ['compute_bayesian_score']

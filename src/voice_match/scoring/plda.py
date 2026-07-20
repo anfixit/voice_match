@@ -1,36 +1,24 @@
-"""
-PLDA (Probabilistic Linear Discriminant Analysis) скоринг.
-TODO: Реализовать PLDA для улучшенного сравнения эмбеддингов.
-"""
-
+"""Контракт для будущего обученного PLDA backend."""
 
 import numpy as np
 
-from voice_match.log import setup_logger
-
-log = setup_logger("plda_scoring")
+from voice_match.exceptions import UncalibratedScoringError
 
 
-def compute_plda_score(embedding1: np.ndarray, embedding2: np.ndarray) -> dict[str, float]:
+def compute_plda_score(
+    embedding1: np.ndarray,
+    embedding2: np.ndarray,
+) -> dict[str, float]:
+    """Запретить подмену PLDA косинусным сходством.
+
+    Реализация появится только вместе с обученными параметрами,
+    описанием training cohort и воспроизводимым benchmark.
     """
-    Вычисляет PLDA оценку сходства двух эмбеддингов.
-
-    Args:
-        embedding1: Первый эмбеддинг
-        embedding2: Второй эмбеддинг
-
-    Returns:
-        Словарь с PLDA оценками
-    """
-    # Заглушка - пока используем косинусное сходство
-    log.warning("PLDA скоринг еще не реализован, используется косинусное сходство")
-
-    # Косинусное сходство как заглушка
-    cosine_sim = np.dot(embedding1, embedding2) / (
-        np.linalg.norm(embedding1) * np.linalg.norm(embedding2)
+    del embedding1, embedding2
+    raise UncalibratedScoringError(
+        'PLDA не обучена. Сырой cosine score нельзя называть '
+        'PLDA score или log-likelihood ratio.'
     )
 
-    return {
-        "plda_score": float(cosine_sim),
-        "log_likelihood_ratio": float(cosine_sim * 10)  # Масштабированное значение
-    }
+
+__all__ = ['compute_plda_score']

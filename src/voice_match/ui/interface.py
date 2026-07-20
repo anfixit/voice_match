@@ -1,159 +1,201 @@
-import logging
-import os
-import tempfile
-import traceback
+"""Gradio-интерфейс voice_match."""
 
-import gradio as gr
+from pathlib import Path
+
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 
-from voice_match.constants import MAX_FILE_SIZE_MB
+from matplotlib.figure import Figure
+
+from voice_match.config import settings
+from voice_match.constants import SAMPLE_RATE, SUPPORTED_EXTENSIONS
 from voice_match.log import setup_logger
 from voice_match.services.comparison import compare_voices_dual
 from voice_match.services.preprocessing import convert_audio_to_wav
 
-# ──────────────── Логгер ────────────────
-logging.basicConfig(level=logging.INFO)
-log = setup_logger("interface")
+log = setup_logger('interface')
 
 
-def visualize_audio(wav_path_1, wav_path_2):
+def visualize_audio(
+    first_path: str,
+    second_path: str,
+) -> Figure:
+    """Построить диагностические графики без временного PNG."""
+    first, _ = librosa.load(first_path, sr=SAMPLE_RATE, mono=True)
+    second, _ = librosa.load(second_path, sr=SAMPLE_RATE, mono=True)
+
+    figure, axes = plt.subplots(3, 2, figsize=(13, 11))
+    first_db = librosa.amplitude_to_db(
+        np.abs(librosa.stft(first)),
+        ref=np.max,
+    )
+    second_db = librosa.amplitude_to_db(
+        np.abs(librosa.stft(second)),
+        ref=np.max,
+    )
+    librosa.display.specshow(
+        first_db,
+        sr=SAMPLE_RATE,
+        x_axis='time',
+        y_axis='log',
+        ax=axes[0, 0],
+    )
+    librosa.display.specshow(
+        second_db,
+        sr=SAMPLE_RATE,
+        x_axis='time',
+        y_axis='log',
+        ax=axes[0, 1],
+    )
+    axes[0, 0].set_title('Спектрограмма 1')
+    axes[0, 1].set_title('Спектрограмма 2')
+
+    axes[1, 0].plot(librosa.feature.rms(y=first)[0])
+    axes[1, 1].plot(librosa.feature.rms(y=second)[0])
+    axes[1, 0].set_title('Энергия 1')
+    axes[1, 1].set_title('Энергия 2')
+
+    first_mfcc = librosa.feature.mfcc(
+        y=first,
+        sr=SAMPLE_RATE,
+        n_mfcc=13,
+    )
+    second_mfcc = librosa.feature.mfcc(
+        y=second,
+        sr=SAMPLE_RATE,
+        n_mfcc=13,
+    )
+    librosa.display.specshow(
+        first_mfcc,
+        x_axis='time',
+        ax=axes[2, 0],
+    )
+    librosa.display.specshow(
+        second_mfcc,
+        x_axis='time',
+        ax=axes[2, 1],
+    )
+    axes[2, 0].set_title('MFCC 1')
+    axes[2, 1].set_title('MFCC 2')
+    figure.tight_layout()
+    return figure
+
+
+def process_files(
+    first_file: str | None,
+    second_file: str | None,
+) -> tuple[str, str, Figure | None]:
+    """Проверить, преобразовать и сравнить два файла."""
+    if not first_file or not second_file:
+        return 'Загрузите оба файла.', '', None
+
+    source_paths = [Path(first_file), Path(second_file)]
+    generated_paths: set[Path] = set()
     try:
-        temp_fd, temp_img_path = tempfile.mkstemp(suffix=".png")
-        os.close(temp_fd)
+        for source in source_paths:
+            _validate_upload(source)
 
-        y1, sr1 = librosa.load(wav_path_1, sr=None)
-        y2, sr2 = librosa.load(wav_path_2, sr=None)
+        first_wav, first_log = convert_audio_to_wav(first_file)
+        second_wav, second_log = convert_audio_to_wav(second_file)
+        for source, converted in zip(
+            source_paths,
+            (Path(first_wav), Path(second_wav)),
+            strict=True,
+        ):
+            if converted.resolve() != source.resolve():
+                generated_paths.add(converted)
 
-        _fig, ax = plt.subplots(4, 2, figsize=(14, 16))
-
-        # Спектрограммы
-        db1 = librosa.amplitude_to_db(np.abs(librosa.stft(y1)), ref=np.max)
-        db2 = librosa.amplitude_to_db(np.abs(librosa.stft(y2)), ref=np.max)
-        librosa.display.specshow(db1, sr=sr1, hop_length=512, x_axis='time', y_axis='log', ax=ax[0, 0])
-        ax[0, 0].set_title('Спектрограмма №1')
-        librosa.display.specshow(db2, sr=sr2, hop_length=512, x_axis='time', y_axis='log', ax=ax[0, 1])
-        ax[0, 1].set_title('Спектрограмма №2')
-
-        # Энергия
-        energy1 = librosa.feature.rms(y=y1)[0]
-        energy2 = librosa.feature.rms(y=y2)[0]
-        ax[1, 0].plot(energy1)
-        ax[1, 0].set_title('Энергия сигнала №1')
-        ax[1, 1].plot(energy2)
-        ax[1, 1].set_title('Энергия сигнала №2')
-
-        # Pitch
-        pitch1, _ = librosa.piptrack(y=y1, sr=sr1)
-        pitch2, _ = librosa.piptrack(y=y2, sr=sr2)
-        ax[2, 0].imshow(pitch1, aspect='auto', origin='lower', cmap='coolwarm')
-        ax[2, 0].set_title('Pitch №1')
-        ax[2, 1].imshow(pitch2, aspect='auto', origin='lower', cmap='coolwarm')
-        ax[2, 1].set_title('Pitch №2')
-
-        # MFCC
-        mfcc1 = librosa.feature.mfcc(y=y1, sr=sr1, n_mfcc=13)
-        mfcc2 = librosa.feature.mfcc(y=y2, sr=sr2, n_mfcc=13)
-        librosa.display.specshow(mfcc1, x_axis='time', ax=ax[3, 0])
-        ax[3, 0].set_title('MFCC №1')
-        librosa.display.specshow(mfcc2, x_axis='time', ax=ax[3, 1])
-        ax[3, 1].set_title('MFCC №2')
-
-        plt.tight_layout()
-        plt.savefig(temp_img_path)
-        plt.close()
-
-        return temp_img_path
-    except Exception as e:
-        log.error('Ошибка визуализации: %s', e)
-        return None
-
-
-def process_files(file1_path, file2_path):
-    try:
-        if not file1_path or not file2_path:
-            return "⚠️ Загрузите оба файла.", "", None
-
-        for file_path in [file1_path, file2_path]:
-            if not os.path.exists(file_path):
-                return f"⚠️ Ошибка: файл {file_path} не найден.", "", None
-
-            file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-            if file_size_mb > MAX_FILE_SIZE_MB:
-                return f"⚠️ Файл слишком большой: {file_size_mb:.1f} МБ", f'Используйте файлы до {MAX_FILE_SIZE_MB} МБ', None
-
-        try:
-            wav1_path, log1 = convert_audio_to_wav(file1_path)
-            wav2_path, log2 = convert_audio_to_wav(file2_path)
-        except Exception as e:
-            return f"⚠️ Ошибка при конвертации: {e!s}", "", None
-
-        for wav_path in [wav1_path, wav2_path]:
-            if not os.path.exists(wav_path):
-                return f"⚠️ Ошибка: файл {wav_path} не найден после конвертации.", "", None
-
-        viz_path = visualize_audio(wav1_path, wav2_path)
-
-        result_msg, summary = compare_voices_dual(wav1_path, wav2_path)
-
-        log_output = (
-            f"📂 Файл 1: {os.path.basename(file1_path)}\n"
-            f"{log1}\n\n"
-            f"📂 Файл 2: {os.path.basename(file2_path)}\n"
-            f"{log2}\n\n"
-            f"{summary}"
+        figure = visualize_audio(first_wav, second_wav)
+        result, report = compare_voices_dual(first_wav, second_wav)
+        details = '\n\n'.join(
+            [
+                f'Файл 1: {source_paths[0].name}\n{first_log}',
+                f'Файл 2: {source_paths[1].name}\n{second_log}',
+                report,
+            ]
         )
+        return result, details, figure
+    except (OSError, RuntimeError, ValueError) as exc:
+        log.exception('Ошибка обработки загруженных файлов')
+        return 'Не удалось обработать файлы.', str(exc), None
+    finally:
+        for path in generated_paths:
+            path.unlink(missing_ok=True)
 
-        return result_msg, log_output, viz_path
 
-    except Exception as exc:
-        log.error('Неожиданная ошибка: %s', exc)
-        log.debug(traceback.format_exc())
-        return "⚠️ Произошла ошибка при обработке файлов.", str(exc), None
+def launch_ui() -> None:
+    """Запустить локальный Gradio UI."""
+    import gradio as gr
 
+    settings.ensure_dirs()
+    auth = settings.gradio_auth()
+    if settings.gradio_host not in {'127.0.0.1', 'localhost'}:
+        if auth is None:
+            raise ValueError(
+                'Для сетевого доступа задайте VM_GRADIO_AUTH_USER '
+                'и VM_GRADIO_AUTH_PASSWORD.'
+            )
 
-def launch_ui():
-    description_text = (
-        "🎧 <b>Поддерживаемые форматы:</b> .wav, .mp3, .m4a, .flac, .ogg<br>"
-        "⚙️ <b>Автоконвертация:</b> аудио будет преобразовано в WAV (16kHz, mono)<br>"
-        "⏱️ <b>Рекомендуемая длина:</b> от 5 сек до 1 мин. Музыка и шумы могут исказить результат.<br>"
-        "🧠 <b>Технология:</b> ECAPA, Resemblyzer, X-vector и др."
+    supported = ', '.join(sorted(SUPPORTED_EXTENSIONS))
+    description = (
+        'Исследовательское сравнение speaker embeddings. '
+        f'Форматы: {supported}. Файлы преобразуются в mono WAV '
+        f'{SAMPLE_RATE} Гц и удаляются после запроса. '
+        'Сервис не выдаёт вероятность личности или экспертное '
+        'заключение без отдельной калибровки.'
     )
 
-    with gr.Blocks(title="Сравнение голосов") as demo:
-        gr.Markdown(f"### 🎙️ Сравнение голосов (voice_match)\n{description_text}", elem_id="intro")
+    with gr.Blocks(title='voice_match') as demo:
+        gr.Markdown('# voice_match')
+        gr.Markdown(description)
 
         with gr.Row():
-            file1 = gr.Audio(label="🔈 Голос №1", type="filepath")
-            file2 = gr.Audio(label="🔉 Голос №2", type="filepath")
+            first_file = gr.Audio(label='Запись 1', type='filepath')
+            second_file = gr.Audio(label='Запись 2', type='filepath')
 
         with gr.Row():
-            compare_button = gr.Button("🔍 Сравнить", interactive=True)
-            clear_button = gr.Button("🧹 Очистить", interactive=True)
+            compare_button = gr.Button('Сравнить', variant='primary')
+            clear_button = gr.Button('Очистить')
 
-        with gr.Row():
-            result = gr.Textbox(label="Результат")
-        with gr.Row():
-            log_output = gr.Textbox(label="Детали анализа", lines=8)
-        with gr.Row():
-            visualization = gr.Image(label="Визуализация спектрограмм", type="filepath")
+        result = gr.Textbox(label='Результат')
+        report = gr.Markdown(label='Детали анализа')
+        visualization = gr.Plot(label='Диагностика аудио')
 
         compare_button.click(
             fn=process_files,
-            inputs=[file1, file2],
-            outputs=[result, log_output, visualization]
+            inputs=[first_file, second_file],
+            outputs=[result, report, visualization],
         )
-
         clear_button.click(
-            fn=lambda: ("", "", None),
+            fn=lambda: ('', '', None),
             inputs=[],
-            outputs=[result, log_output, visualization]
+            outputs=[result, report, visualization],
         )
 
-        gr.Markdown(
-            "📄 <a href='https://github.com/anfixit/voice_match' target='_blank'>Исходный код и документация на GitHub</a>",
-            elem_id="footer"
+    demo.launch(
+        server_name=settings.gradio_host,
+        server_port=settings.gradio_port,
+        auth=auth,
+        share=False,
+        debug=False,
+        max_threads=1,
+        show_error=False,
+    )
+
+
+def _validate_upload(path: Path) -> None:
+    if not path.is_file():
+        raise FileNotFoundError(f'Файл не найден: {path.name}.')
+    if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+        raise ValueError(f'Неподдерживаемый формат: {path.suffix}.')
+
+    size_mb = path.stat().st_size / 1024 / 1024
+    if size_mb > settings.max_file_size_mb:
+        raise ValueError(
+            f'Файл {path.name} занимает {size_mb:.1f} МБ. '
+            f'Максимум: {settings.max_file_size_mb} МБ.'
         )
 
-    demo.launch(share=False, debug=True, max_threads=1)
+
+__all__ = ['launch_ui', 'process_files', 'visualize_audio']
