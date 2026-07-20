@@ -163,12 +163,12 @@ def launch_ui() -> None:
         report = gr.Markdown(label='Детали анализа')
         visualization = gr.Plot(label='Диагностика аудио')
 
-        compare_button.click(
+        compare_button.click(  # type: ignore[attr-defined]
             fn=process_files,
             inputs=[first_file, second_file],
             outputs=[result, report, visualization],
         )
-        clear_button.click(
+        clear_button.click(  # type: ignore[attr-defined]
             fn=lambda: ('', '', None),
             inputs=[],
             outputs=[result, report, visualization],

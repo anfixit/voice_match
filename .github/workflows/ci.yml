@@ -29,34 +29,53 @@ jobs:
           python-version: '3.12'
           enable-cache: true
 
-      - name: Refresh lock and install dependencies
-        run: |
-          uv lock --upgrade
-          uv sync --extra dev
+      - name: Install locked dependencies
+        run: uv sync --frozen --extra dev
 
       - name: Lint
+        run: uv run ruff check src tests
+
+      - name: Type check
         run: |
           set -o pipefail
-          uv run ruff check src tests 2>&1 | tee ruff.log
+          uv run mypy src 2>&1 | tee mypy.log
 
-      - name: Upload lint diagnostics
+      - name: Upload type-check diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ruff-diagnostics
-          path: ruff.log
+          name: mypy-diagnostics
+          path: mypy.log
           retention-days: 1
 
-      - name: Type check
-        run: uv run mypy src
-
       - name: Tests
-        run: uv run pytest
+        run: |
+          set -o pipefail
+          uv run pytest 2>&1 | tee pytest.log
+
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pytest-diagnostics
+          path: pytest.log
+          retention-days: 1
+
+      - name: Export locked dependencies
+        run: |
+          uv export \
+            --frozen \
+            --no-emit-project \
+            --no-hashes \
+            --output-file requirements-audit.txt
 
       - name: Audit dependencies
         run: |
           set -o pipefail
-          uv audit --frozen 2>&1 | tee audit.log
+          uvx --from pip-audit pip-audit \
+            --strict \
+            --requirement requirements-audit.txt \
+            2>&1 | tee audit.log
 
       - name: Upload audit diagnostics
         if: always()
@@ -64,14 +83,6 @@ jobs:
         with:
           name: audit-diagnostics
           path: audit.log
-          retention-days: 1
-
-      - name: Upload refreshed lockfile
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: refreshed-lockfile
-          path: uv.lock
           retention-days: 1
 
   docker:
@@ -83,15 +94,4 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
       - name: Build image
-        run: |
-          set -o pipefail
-          docker build --progress=plain --tag voice-match:ci . \
-            2>&1 | tee docker-build.log
-
-      - name: Upload Docker diagnostics
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: docker-diagnostics
-          path: docker-build.log
-          retention-days: 1
+        run: docker build --progress=plain --tag voice-match:ci .
