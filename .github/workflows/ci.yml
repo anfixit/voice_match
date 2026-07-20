@@ -48,7 +48,17 @@ jobs:
           retention-days: 1
 
       - name: Type check
-        run: uv run mypy src
+        run: |
+          set -o pipefail
+          uv run mypy src 2>&1 | tee mypy.log
+
+      - name: Upload type diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: mypy-diagnostics
+          path: mypy.log
+          retention-days: 1
 
       - name: Tests
         run: uv run pytest
