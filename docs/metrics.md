@@ -27,6 +27,12 @@ score = dot(normalize(e1), normalize(e2))
 Оно не называется доверительным интервалом и не измеряет уверенность
 в гипотезе same speaker.
 
+## Локальный benchmark evaluator
+
+Репозиторий содержит строгий CSV evaluator для FAR, FRR, EER и
+minDCF. Формат protocol, команды и ограничения описаны в
+[отдельной инструкции](benchmark.md).
+
 ## Что нужно для решения same/different
 
 Нужен отдельный evaluation protocol:
