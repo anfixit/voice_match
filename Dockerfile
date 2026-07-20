@@ -31,9 +31,10 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         ffmpeg \
         libsndfile1 \
-        passwd \
+        adduser \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 10001 appuser
+    && adduser --disabled-password --gecos '' \
+        --uid 10001 appuser
 
 WORKDIR /app
 
