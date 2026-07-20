@@ -44,7 +44,8 @@ speaker embeddings двух голосовых записей.
 - автоматическое удаление созданных временных WAV;
 - сетевой запуск только с логином и паролем;
 - Docker с непривилегированным пользователем;
-- тесты, type checking, lint и dependency audit в CI.
+- тесты, type checking, lint и dependency audit в CI;
+- CSV evaluator для FAR, FRR, EER и minDCF.
 
 ## Как устроен анализ
 
@@ -86,6 +87,7 @@ Telegram, телефонных звонков, диктофонов и студ�
 - [Методология](docs/methodology.md)
 - [Метрики и калибровка](docs/metrics.md)
 - [Техническая архитектура](docs/technical_details.md)
+- [Воспроизводимый benchmark](docs/benchmark.md)
 
 ## Быстрый запуск
 
@@ -263,7 +265,10 @@ uv sync --frozen --extra dev
 uv run ruff check .
 uv run mypy src
 uv run pytest
-uv audit
+uv export --frozen --no-emit-project --no-hashes \
+  --output-file requirements-audit.txt
+uvx --from pip-audit pip-audit --strict \
+  --requirement requirements-audit.txt
 ```
 
 Тестовый набор проверяет:
@@ -276,7 +281,8 @@ uv audit
 - запрет псевдо-PLDA и псевдовероятностей;
 - ECAPA adapter;
 - удаление временных WAV;
-- оркестрацию сравнения без загрузки реальной модели.
+- оркестрацию сравнения без загрузки реальной модели;
+- protocol validation и расчёт benchmark metrics.
 
 ## Структура проекта
 
@@ -289,6 +295,7 @@ src/voice_match/
 │   └── antispoofing.py        fail-closed интерфейс модели
 ├── models/
 │   └── ecapa.py               SpeechBrain ECAPA adapter
+├── evaluation/               benchmark protocol и метрики
 ├── scoring/
 │   ├── similarity.py          чистая математика score
 │   ├── plda.py                запрет fake PLDA
@@ -321,6 +328,8 @@ src/voice_match/
 
 ### Этап 3. Калибровка
 
+- [x] добавить строгий target/nontarget CSV protocol;
+- [x] считать FAR, FRR, EER и minDCF;
 - [ ] собрать законный целевой датасет;
 - [ ] разделить дикторов между train, calibration и test;
 - [ ] построить target/non-target trials;
