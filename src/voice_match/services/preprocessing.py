@@ -1,9 +1,8 @@
 """Безопасная проверка и конвертация входных аудиофайлов."""
 
 import shutil
-import subprocess
+import subprocess  # noqa: S404
 import tempfile
-
 from pathlib import Path
 from typing import TypedDict
 

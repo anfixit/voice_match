@@ -5,7 +5,6 @@ from pathlib import Path
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
-
 from matplotlib.figure import Figure
 
 from voice_match.config import settings
@@ -130,12 +129,14 @@ def launch_ui() -> None:
 
     settings.ensure_dirs()
     auth = settings.gradio_auth()
-    if settings.gradio_host not in {'127.0.0.1', 'localhost'}:
-        if auth is None:
-            raise ValueError(
-                'Для сетевого доступа задайте VM_GRADIO_AUTH_USER '
-                'и VM_GRADIO_AUTH_PASSWORD.'
-            )
+    if (
+        settings.gradio_host not in {'127.0.0.1', 'localhost'}
+        and auth is None
+    ):
+        raise ValueError(
+            'Для сетевого доступа задайте VM_GRADIO_AUTH_USER '
+            'и VM_GRADIO_AUTH_PASSWORD.'
+        )
 
     supported = ', '.join(sorted(SUPPORTED_EXTENSIONS))
     description = (

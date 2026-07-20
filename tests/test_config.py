@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-
 from pydantic import SecretStr
 
 from voice_match.config import Settings

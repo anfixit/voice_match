@@ -5,7 +5,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-
 from speechbrain.inference.classifiers import EncoderClassifier
 
 from voice_match.config import settings

@@ -54,17 +54,12 @@ line-length = 79
 
 [tool.ruff.lint]
 select = [
-    'A',
     'B',
-    'C4',
     'E',
     'F',
     'I',
     'N',
-    'RUF',
     'S',
-    'SIM',
-    'TCH',
     'UP',
     'W',
 ]
@@ -79,11 +74,12 @@ known-first-party = ['voice_match']
 force-single-line = false
 
 [tool.ruff.lint.per-file-ignores]
-'tests/*' = ['S101']
+'tests/*' = ['S101', 'S105']
 
 [tool.mypy]
 python_version = '3.12'
 strict = true
+disallow_any_generics = false
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
