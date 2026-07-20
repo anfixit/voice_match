@@ -56,9 +56,19 @@ jobs:
 
       - name: Audit dependencies
         run: |
+          set -o pipefail
           uvx --from pip-audit pip-audit \
             --strict \
-            --requirement requirements-audit.txt
+            --requirement requirements-audit.txt \
+            2>&1 | tee audit.log
+
+      - name: Upload audit diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: audit-diagnostics
+          path: audit.log
+          retention-days: 1
 
   docker:
     runs-on: ubuntu-latest
