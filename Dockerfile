@@ -23,23 +23,26 @@ RUN uv sync --no-dev
 
 FROM python:3.12-slim AS runtime
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
+ENV HOME='/tmp' \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    XDG_CACHE_HOME='/app/pretrained_models/cache' \
+    HF_HOME='/app/pretrained_models/huggingface' \
     PATH='/app/.venv/bin:/usr/local/bin:/usr/bin:/bin'
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         ffmpeg \
         libsndfile1 \
-        passwd \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 10001 appuser
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY --from=builder --chown=appuser:appuser /app /app
+COPY --from=builder --chown=10001:10001 /app /app
+RUN mkdir -p /app/pretrained_models \
+    && chown -R 10001:10001 /app
 
-USER appuser
+USER 10001:10001
 
 EXPOSE 7860
 
