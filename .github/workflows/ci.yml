@@ -54,7 +54,17 @@ jobs:
         run: uv run pytest
 
       - name: Audit dependencies
-        run: uv audit
+        run: |
+          set -o pipefail
+          uv audit --frozen 2>&1 | tee audit.log
+
+      - name: Upload audit diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: audit-diagnostics
+          path: audit.log
+          retention-days: 1
 
       - name: Upload refreshed lockfile
         if: always()

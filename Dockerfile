@@ -31,6 +31,7 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         ffmpeg \
         libsndfile1 \
+        passwd \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 appuser
 
