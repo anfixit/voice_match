@@ -1,8 +1,12 @@
 """Чистые функции для расчёта сходства эмбеддингов."""
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
+from numpy.typing import NDArray
+
+type FloatArray = NDArray[np.float64]
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,7 +22,7 @@ class SimilaritySummary:
     pair_count: int
 
 
-def normalize_embedding(embedding: np.ndarray) -> np.ndarray:
+def normalize_embedding(embedding: np.ndarray) -> FloatArray:
     """Нормализовать эмбеддинг по L2-норме.
 
     Raises:
@@ -79,7 +83,7 @@ def summarize_embeddings(
     )
 
 
-def _normalize_matrix(embeddings: np.ndarray) -> np.ndarray:
+def _normalize_matrix(embeddings: np.ndarray) -> FloatArray:
     matrix = np.asarray(embeddings, dtype=np.float64)
     if matrix.ndim != 2 or matrix.shape[0] == 0:
         raise ValueError('Ожидается непустая матрица эмбеддингов.')
@@ -90,4 +94,4 @@ def _normalize_matrix(embeddings: np.ndarray) -> np.ndarray:
     if np.any(norms == 0.0):
         raise ValueError('Матрица содержит нулевой эмбеддинг.')
 
-    return matrix / norms
+    return cast(FloatArray, matrix / norms)

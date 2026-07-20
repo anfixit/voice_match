@@ -15,10 +15,10 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.16 \
 WORKDIR /app
 
 COPY pyproject.toml uv.lock README.md LICENSE ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --no-dev --no-install-project
 
 COPY src ./src
-RUN uv sync --frozen --no-dev
+RUN uv sync --no-dev
 
 
 FROM python:3.12-slim AS runtime

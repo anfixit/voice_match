@@ -49,7 +49,7 @@ class AntiSpoofingDetector:
             )
 
         try:
-            self._model = torch.jit.load(
+            self._model = torch.jit.load(  # type: ignore[no-untyped-call]
                 str(self._model_path),
                 map_location='cpu',
             )
