@@ -19,6 +19,12 @@ from voice_match.evaluation.protocol import (
     load_trials_csv,
 )
 from voice_match.evaluation.report import build_payload, render_markdown
+from voice_match.evaluation.scoring import (
+    EcapaRecordingEncoder,
+    RecordingEncoder,
+    score_trial_definitions,
+    write_scored_trials_csv,
+)
 from voice_match.evaluation.trial_generation import (
     TrialDefinition,
     TrialGenerationConfig,
@@ -26,13 +32,18 @@ from voice_match.evaluation.trial_generation import (
     generate_trial_definitions,
     write_trial_definitions_csv,
 )
+from voice_match.evaluation.trial_plan import (
+    load_trial_definitions_csv,
+)
 
 __all__ = [
     'BenchmarkSummary',
     'DatasetSplit',
     'DetectionCostModel',
+    'EcapaRecordingEncoder',
     'ErrorRates',
     'Recording',
+    'RecordingEncoder',
     'Trial',
     'TrialDefinition',
     'TrialGenerationConfig',
@@ -44,7 +55,10 @@ __all__ = [
     'count_trial_labels',
     'generate_trial_definitions',
     'load_recordings_csv',
+    'load_trial_definitions_csv',
     'load_trials_csv',
     'render_markdown',
+    'score_trial_definitions',
+    'write_scored_trials_csv',
     'write_trial_definitions_csv',
 ]
