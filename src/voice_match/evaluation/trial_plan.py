@@ -35,8 +35,9 @@ def load_trial_definitions_csv(
         seen_pairs: set[tuple[str, str]] = set()
         for line_number, row in enumerate(reader, start=2):
             trial = _parse_trial_definition(row, line_number)
-            pair = tuple(
-                sorted((trial.enrollment_id, trial.test_id)),
+            pair = _ordered_pair(
+                trial.enrollment_id,
+                trial.test_id,
             )
             if pair in seen_pairs:
                 raise ValueError(
@@ -110,6 +111,12 @@ def _required_value(
             f'Строка {line_number}: поле {field!r} не заполнено.',
         )
     return value
+
+
+def _ordered_pair(first: str, second: str) -> tuple[str, str]:
+    if first <= second:
+        return first, second
+    return second, first
 
 
 def _validate_trial_classes(
