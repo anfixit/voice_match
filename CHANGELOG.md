@@ -14,6 +14,8 @@ Versioning.
 - Псевдонимизированный recording manifest с проверкой split leakage.
 - Детерминированный генератор cross-session target/nontarget trials.
 - Протокол законного сбора и безопасного хранения голосовых записей.
+- Пакетный ECAPA scoring с кэшированием уникальных записей.
+- CLI для преобразования scoreless trial plan в benchmark CSV.
 
 ### Изменено
 
@@ -49,10 +51,12 @@ Versioning.
   `no-new-privileges`.
 - Manifest отклоняет абсолютные пути, traversal и дубли аудиофайлов.
 - Один диктор не может одновременно попасть в разные dataset split.
+- Scoring отклоняет неверные labels, split leakage и symlink escape.
 
 ### Тесты
 
 - Добавлены unit-тесты manifest и генератора trial plan.
+- Добавлены тесты scoreless plan, batch scoring и scoring CLI.
 - Минимальное покрытие установлено на 70 процентов.
 - CI запускает ruff, mypy, pytest, pip-audit и Docker build.
 
