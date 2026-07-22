@@ -1,0 +1,7 @@
+enrollment_id,test_id,label,score,condition
+speaker-a-session-1,speaker-a-session-2,target,0.84,clean
+speaker-a-session-1,speaker-a-phone,target,0.54,telephone
+speaker-b-session-1,speaker-b-session-2,target,0.79,clean
+speaker-a-session-1,speaker-b-session-1,nontarget,0.24,clean
+speaker-a-phone,speaker-c-phone,nontarget,0.58,telephone
+speaker-b-session-2,speaker-c-phone,nontarget,0.31,cross-device

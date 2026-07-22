@@ -5,6 +5,13 @@ Versioning.
 
 ## [Unreleased]
 
+### Добавлено
+
+- Строгий CSV protocol для target/nontarget trials.
+- Воспроизводимый расчёт FAR, FRR, EER и minDCF.
+- JSON и Markdown отчёты benchmark evaluator.
+- Документация по разделению train/calibration/test.
+
 ### Изменено
 
 - Активное ядро заменено на прозрачный ECAPA baseline.
@@ -40,9 +47,9 @@ Versioning.
 
 ### Тесты
 
-- Добавлен 31 unit-тест.
+- Добавлено 46 unit-тестов.
 - Минимальное покрытие установлено на 70 процентов.
-- CI запускает ruff, mypy, pytest, `uv audit` и Docker build.
+- CI запускает ruff, mypy, pytest, pip-audit и Docker build.
 
 ## [0.2.0]
 
