@@ -33,7 +33,17 @@ jobs:
         run: uv sync --frozen --extra dev
 
       - name: Lint
-        run: uv run ruff check src tests
+        run: |
+          set -o pipefail
+          uv run ruff check src tests 2>&1 | tee ruff.log
+
+      - name: Upload lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ruff-diagnostics
+          path: ruff.log
+          retention-days: 1
 
       - name: Type check
         run: |
@@ -94,4 +104,15 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
       - name: Build image
-        run: docker build --progress=plain --tag voice-match:ci .
+        run: |
+          set -o pipefail
+          docker build --progress=plain --tag voice-match:ci . \
+            2>&1 | tee docker-build.log
+
+      - name: Upload Docker diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: docker-diagnostics
+          path: docker-build.log
+          retention-days: 1

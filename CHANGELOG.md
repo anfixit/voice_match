@@ -11,6 +11,9 @@ Versioning.
 - Воспроизводимый расчёт FAR, FRR, EER и minDCF.
 - JSON и Markdown отчёты benchmark evaluator.
 - Документация по разделению train/calibration/test.
+- Псевдонимизированный recording manifest с проверкой split leakage.
+- Детерминированный генератор cross-session target/nontarget trials.
+- Протокол законного сбора и безопасного хранения голосовых записей.
 
 ### Изменено
 
@@ -44,10 +47,12 @@ Versioning.
 - Удалено логирование полных путей пользовательских файлов.
 - Контейнер использует read-only filesystem, `cap_drop: ALL` и
   `no-new-privileges`.
+- Manifest отклоняет абсолютные пути, traversal и дубли аудиофайлов.
+- Один диктор не может одновременно попасть в разные dataset split.
 
 ### Тесты
 
-- Добавлено 46 unit-тестов.
+- Добавлены unit-тесты manifest и генератора trial plan.
 - Минимальное покрытие установлено на 70 процентов.
 - CI запускает ruff, mypy, pytest, pip-audit и Docker build.
 
