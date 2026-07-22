@@ -39,9 +39,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_scored_trials_csv(trials, args.output)
     except (
         AudioValidationError,
-        FileNotFoundError,
         ModelUnavailableError,
-        NotADirectoryError,
         OSError,
         RuntimeError,
         ValueError,
