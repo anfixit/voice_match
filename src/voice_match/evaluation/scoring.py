@@ -3,7 +3,7 @@
 import csv
 import math
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 
@@ -249,14 +249,15 @@ def _index_recordings(
 
 def _validate_definition(
     definition: TrialDefinition,
-    recording_by_id: dict[str, Recording],
+    recording_by_id: Mapping[str, Recording],
     seen_pairs: set[tuple[str, str]],
 ) -> None:
     if definition.enrollment_id == definition.test_id:
         raise ValueError('Запись нельзя сравнивать с собой.')
 
-    pair = tuple(
-        sorted((definition.enrollment_id, definition.test_id)),
+    pair = _ordered_pair(
+        definition.enrollment_id,
+        definition.test_id,
     )
     if pair in seen_pairs:
         raise ValueError(f'Пара {pair!r} дублируется.')
@@ -289,6 +290,12 @@ def _validate_definition(
         raise ValueError(
             f'Nontarget-пара {pair!r} содержит одного диктора.',
         )
+
+
+def _ordered_pair(first: str, second: str) -> tuple[str, str]:
+    if first <= second:
+        return first, second
+    return second, first
 
 
 __all__ = [
