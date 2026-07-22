@@ -1,0 +1,9 @@
+recording_id,speaker_id,session_id,path,split,condition
+spk-001-s01-u01,spk-001,s01,audio/spk-001/s01/u01.wav,calibration,clean
+spk-001-s02-u01,spk-001,s02,audio/spk-001/s02/u01.wav,calibration,telegram
+spk-002-s01-u01,spk-002,s01,audio/spk-002/s01/u01.wav,calibration,clean
+spk-002-s02-u01,spk-002,s02,audio/spk-002/s02/u01.wav,calibration,telephone
+spk-101-s01-u01,spk-101,s01,audio/spk-101/s01/u01.wav,test,clean
+spk-101-s02-u01,spk-101,s02,audio/spk-101/s02/u01.wav,test,telegram
+spk-102-s01-u01,spk-102,s01,audio/spk-102/s01/u01.wav,test,clean
+spk-102-s02-u01,spk-102,s02,audio/spk-102/s02/u01.wav,test,telephone
